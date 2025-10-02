@@ -48,6 +48,7 @@ async def find_match(request: MatchFindRequest, db: AsyncSession = Depends(get_d
 
     # Check user has ≥2 topics
     from sqlalchemy import func
+
     from models.topic import UserTopic
 
     topic_count_result = await db.execute(

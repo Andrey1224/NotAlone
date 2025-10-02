@@ -68,9 +68,9 @@ async def get_coaching_hint(context: str, hint_type: str = "empathy") -> str:
         return "AI подсказки отключены"
 
     prompt_template = PROMPTS.get(hint_type, EMPATHY_PROMPT)
-    prompt = prompt_template.format(context=context)
+    _prompt = prompt_template.format(context=context)
 
-    # TODO: Call OpenAI/Anthropic API
+    # TODO: Call OpenAI/Anthropic API with _prompt
     # Example:
     # response = await openai.ChatCompletion.acreate(
     #     model=settings.ai_model,
