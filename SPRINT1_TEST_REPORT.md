@@ -1,8 +1,8 @@
 # Sprint 1 - Отчёт о тестировании
 
-**Дата:** 2 октября 2025  
-**Проект:** "Ты не один" (NotAlone) - Telegram бот для peer-to-peer поддержки  
-**Токен бота:** `8225183278:AAH6boNz5RMJFxc9blZ8qyaPygJGT51A_yo`  
+**Дата:** 2 октября 2025
+**Проект:** "Ты не один" (NotAlone) - Telegram бот для peer-to-peer поддержки
+**Токен бота:** `8225183278:AAH6boNz5RMJFxc9blZ8qyaPygJGT51A_yo`
 **Бот:** [@NotAlone99Bot](https://t.me/NotAlone99Bot)
 
 ---
@@ -64,7 +64,7 @@ $ curl -s http://localhost:8000/health/redis
 -- Список таблиц
 \dt
                List of tables
- Schema |      Name       | Type  |  Owner   
+ Schema |      Name       | Type  |  Owner
 --------+-----------------+-------+----------
  public | ai_hints        | table | postgres
  public | alembic_version | table | postgres
@@ -79,13 +79,13 @@ $ curl -s http://localhost:8000/health/redis
 
 -- Количество топиков
 SELECT COUNT(*) FROM topics;
- count 
+ count
 -------
     12
 
 -- Примеры топиков
 SELECT slug, title FROM topics LIMIT 5;
-    slug    |      title      
+    slug    |      title
 ------------+-----------------
  divorce    | 💔 Развод
  burnout    | 🔥 Выгорание
