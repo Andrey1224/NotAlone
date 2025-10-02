@@ -3,17 +3,22 @@
 import asyncio
 from aiohttp import web
 from aiogram import Bot, Dispatcher
+from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 
 from apps.bot.handlers import start, profile, find, tips
+from apps.bot.middlewares.database import DatabaseMiddleware
 from apps.bot.middlewares.rate_limit import RateLimitMiddleware
 from core.config import settings
 
 # Initialize bot and dispatcher
 bot = Bot(token=settings.telegram_bot_token)
-dp = Dispatcher()
+storage = MemoryStorage()
+dp = Dispatcher(storage=storage)
 
 # Register middlewares
+dp.message.middleware(DatabaseMiddleware())
+dp.callback_query.middleware(DatabaseMiddleware())
 dp.message.middleware(RateLimitMiddleware())
 
 # Register handlers

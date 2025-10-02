@@ -3,19 +3,55 @@
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 
-def get_topics_keyboard() -> InlineKeyboardMarkup:
+def get_topics_keyboard(selected: set[str] | None = None) -> InlineKeyboardMarkup:
     """Build inline keyboard for topic selection."""
-    # TODO: Load topics from database
+    if selected is None:
+        selected = set()
+
     topics = [
-        ("💔 Развод", "topic_divorce"),
-        ("🔥 Выгорание", "topic_burnout"),
-        ("🏠 Переезд", "topic_relocation"),
-        ("💼 Смена работы", "topic_job_change"),
-        ("😢 Утрата", "topic_loss"),
-        ("🌱 Личностный рост", "topic_growth"),
+        ("💔 Развод", "divorce"),
+        ("🔥 Выгорание", "burnout"),
+        ("🏠 Переезд", "relocation"),
+        ("💼 Смена работы", "job_change"),
+        ("😢 Утрата", "loss"),
+        ("🌱 Личностный рост", "growth"),
+        ("😰 Тревога", "anxiety"),
+        ("🫂 Одиночество", "loneliness"),
+        ("👶 Родительство", "parenting"),
+        ("🏥 Здоровье", "health"),
+        ("💑 Отношения", "relationships"),
+        ("📈 Карьера", "career"),
     ]
 
-    buttons = [[InlineKeyboardButton(text=text, callback_data=callback)] for text, callback in topics]
+    buttons = []
+    for text, slug in topics:
+        # Add checkmark if selected
+        display_text = f"✅ {text}" if slug in selected else text
+        buttons.append([InlineKeyboardButton(text=display_text, callback_data=f"topic_{slug}")])
+
+    # Add "Done" button
+    buttons.append([InlineKeyboardButton(text="✅ Готово", callback_data="topics_done")])
+
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+
+def get_timezones_keyboard() -> InlineKeyboardMarkup:
+    """Build inline keyboard for timezone selection."""
+    timezones = [
+        ("🇷🇺 Москва (МСК)", "Europe/Moscow"),
+        ("🇷🇺 Екатеринбург (МСК+2)", "Asia/Yekaterinburg"),
+        ("🇷🇺 Новосибирск (МСК+4)", "Asia/Novosibirsk"),
+        ("🇷🇺 Владивосток (МСК+7)", "Asia/Vladivostok"),
+        ("🇺🇦 Киев", "Europe/Kiev"),
+        ("🇰🇿 Алматы", "Asia/Almaty"),
+        ("🇧🇾 Минск", "Europe/Minsk"),
+        ("🇬🇪 Тбилиси", "Asia/Tbilisi"),
+        ("🇦🇲 Ереван", "Asia/Yerevan"),
+        ("🇦🇿 Баку", "Asia/Baku"),
+    ]
+
+    buttons = [[InlineKeyboardButton(text=text, callback_data=f"tz_{tz}")] for text, tz in timezones]
 
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 

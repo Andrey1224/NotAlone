@@ -4,6 +4,7 @@ from typing import AsyncGenerator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from apps.api.middlewares.metrics import MetricsMiddleware
 from apps.api.routers import health, match, payments
 from core import close_redis
 from core.config import settings
@@ -25,7 +26,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS middleware
+# Middlewares
+app.add_middleware(MetricsMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"] if settings.is_development else [],
@@ -44,3 +46,13 @@ app.include_router(payments.router, prefix="/payments", tags=["payments"])
 async def root() -> dict[str, str]:
     """Root endpoint."""
     return {"status": "ok", "service": "ty-ne-odin"}
+
+
+
+@app.get("/metrics")
+async def metrics() -> str:
+    """Prometheus metrics endpoint."""
+    from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+    from fastapi import Response
+
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
