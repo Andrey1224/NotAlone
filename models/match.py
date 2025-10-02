@@ -1,0 +1,25 @@
+from datetime import datetime
+
+from sqlalchemy import BigInteger, String, DateTime, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column
+
+from core.db import Base
+
+
+class Match(Base):
+    """Match model for connecting two users."""
+
+    __tablename__ = "matches"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    user_a: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    user_b: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="proposed"
+    )  # proposed, active, declined, expired, completed
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (UniqueConstraint("user_a", "user_b", name="uq_match_users"),)
+
+    def __repr__(self) -> str:
+        return f"<Match(id={self.id}, user_a={self.user_a}, user_b={self.user_b}, status={self.status})>"
