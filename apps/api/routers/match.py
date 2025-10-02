@@ -35,9 +35,7 @@ async def find_match(request: MatchFindRequest, db: AsyncSession = Depends(get_d
     from models.user import User
 
     # Validate user exists and has profile with ≥2 topics
-    result = await db.execute(
-        select(User).where(User.tg_id == request.user_id)
-    )
+    result = await db.execute(select(User).where(User.tg_id == request.user_id))
     user = result.scalar_one_or_none()
 
     if not user:
@@ -51,10 +49,7 @@ async def find_match(request: MatchFindRequest, db: AsyncSession = Depends(get_d
 
     from models.topic import UserTopic
 
-    topic_count_result = await db.execute(
-        select(func.count(UserTopic.topic_id))
-        .where(UserTopic.user_id == user.id)
-    )
+    topic_count_result = await db.execute(select(func.count(UserTopic.topic_id)).where(UserTopic.user_id == user.id))
     topic_count = topic_count_result.scalar()
 
     if topic_count < 2:
@@ -94,18 +89,14 @@ async def confirm_match(request: MatchConfirmRequest, db: AsyncSession = Depends
     from models.user import User
 
     # Get match
-    result = await db.execute(
-        select(Match).where(Match.id == request.match_id)
-    )
+    result = await db.execute(select(Match).where(Match.id == request.match_id))
     match = result.scalar_one_or_none()
 
     if not match:
         return {"status": "error", "message": "Match not found"}
 
     # Get user to determine which side they are
-    user_result = await db.execute(
-        select(User).where(User.tg_id == request.user_id)
-    )
+    user_result = await db.execute(select(User).where(User.tg_id == request.user_id))
     user = user_result.scalar_one_or_none()
 
     if not user:
@@ -124,7 +115,11 @@ async def confirm_match(request: MatchConfirmRequest, db: AsyncSession = Depends
         match.status = "declined"
         # Add to recent_contacts with 72h TTL
         until = datetime.utcnow() + timedelta(hours=72)
-        db.add(RecentContact(user_id=user.id, other_id=match.user_a if user.id == match.user_b else match.user_b, until=until))
+        db.add(
+            RecentContact(
+                user_id=user.id, other_id=match.user_a if user.id == match.user_b else match.user_b, until=until
+            )
+        )
         await db.commit()
         return {"status": "declined", "match_id": str(request.match_id)}
 

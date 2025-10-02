@@ -28,19 +28,14 @@ async def cmd_profile(message: Message, state: FSMContext, db: AsyncSession) -> 
         # Start profile creation
         await state.set_state(ProfileForm.nickname)
         await message.answer(
-            "👤 Давайте создадим ваш профиль!\n\n"
-            "Введите псевдоним (как вас будут видеть собеседники):"
+            "👤 Давайте создадим ваш профиль!\n\n" "Введите псевдоним (как вас будут видеть собеседники):"
         )
 
 
 async def show_profile(message: Message, user: User, db: AsyncSession) -> None:
     """Display user profile."""
     # Load user topics
-    result = await db.execute(
-        select(Topic)
-        .join(UserTopic)
-        .where(UserTopic.user_id == user.id)
-    )
+    result = await db.execute(select(Topic).join(UserTopic).where(UserTopic.user_id == user.id))
     topics = result.scalars().all()
     topics_text = ", ".join(t.title for t in topics) if topics else "не указаны"
 
@@ -74,9 +69,7 @@ async def process_nickname(message: Message, state: FSMContext) -> None:
     await state.set_state(ProfileForm.timezone)
 
     await message.answer(
-        f"✅ Отлично, {nickname}!\n\n"
-        "🌍 Теперь выберите ваш часовой пояс:",
-        reply_markup=get_timezones_keyboard()
+        f"✅ Отлично, {nickname}!\n\n" "🌍 Теперь выберите ваш часовой пояс:", reply_markup=get_timezones_keyboard()
     )
 
 
@@ -91,7 +84,7 @@ async def process_timezone(callback: CallbackQuery, state: FSMContext, db: Async
         f"✅ Часовой пояс: {timezone}\n\n"
         "📌 Выберите темы, которые вас интересуют (минимум 2):\n"
         "Нажимайте на кнопки, чтобы выбрать или отменить выбор.",
-        reply_markup=get_topics_keyboard()
+        reply_markup=get_topics_keyboard(),
     )
     await callback.answer()
 
@@ -114,9 +107,7 @@ async def process_topic_selection(callback: CallbackQuery, state: FSMContext, db
     await state.update_data(selected_topics=selected_topics)
 
     # Update keyboard
-    await callback.message.edit_reply_markup(
-        reply_markup=get_topics_keyboard(selected_topics)
-    )
+    await callback.message.edit_reply_markup(reply_markup=get_topics_keyboard(selected_topics))
     await callback.answer(f"Выбрано тем: {len(selected_topics)}")
 
 
@@ -154,8 +145,7 @@ async def process_bio(message: Message, state: FSMContext) -> None:
 
     if len(bio) > 160:
         await message.answer(
-            f"Описание слишком длинное ({len(bio)} символов). "
-            "Максимум 160 символов. Попробуйте короче:"
+            f"Описание слишком длинное ({len(bio)} символов). " "Максимум 160 символов. Попробуйте короче:"
         )
         return
 
@@ -186,9 +176,9 @@ async def send_safety_confirmation(message: Message) -> None:
 
     from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✅ Я понимаю", callback_data="safety_accept")]
-    ])
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text="✅ Я понимаю", callback_data="safety_accept")]]
+    )
 
     await message.answer(safety_text, reply_markup=keyboard)
 
@@ -204,16 +194,14 @@ async def process_safety_confirmation(callback: CallbackQuery, state: FSMContext
         nickname=data["nickname"],
         tz=data["tz"],
         bio_short=data.get("bio_short"),
-        safety_ack=True
+        safety_ack=True,
     )
     db.add(user)
     await db.flush()
 
     # Load topics from DB
     selected_topics = data.get("selected_topics", set())
-    result = await db.execute(
-        select(Topic).where(Topic.slug.in_(selected_topics))
-    )
+    result = await db.execute(select(Topic).where(Topic.slug.in_(selected_topics)))
     topics = result.scalars().all()
 
     # Create user-topic relationships
@@ -224,8 +212,7 @@ async def process_safety_confirmation(callback: CallbackQuery, state: FSMContext
     await db.commit()
 
     await callback.message.edit_text(
-        f"✅ Профиль создан, {user.nickname}!\n\n"
-        "Теперь вы можете найти собеседника командой /find"
+        f"✅ Профиль создан, {user.nickname}!\n\n" "Теперь вы можете найти собеседника командой /find"
     )
     await callback.answer()
     await state.clear()

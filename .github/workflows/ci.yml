@@ -175,6 +175,9 @@ jobs:
       - name: Check migrations
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/test_db
+          SECRET_KEY: test_secret_key_for_ci
+          TELEGRAM_BOT_TOKEN: test_bot_token
+          PUBLIC_BASE_URL: https://test.example.com
         run: |
           alembic upgrade head
           alembic check

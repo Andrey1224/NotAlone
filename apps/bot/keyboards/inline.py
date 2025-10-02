@@ -35,7 +35,6 @@ def get_topics_keyboard(selected: set[str] | None = None) -> InlineKeyboardMarku
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-
 def get_timezones_keyboard() -> InlineKeyboardMarkup:
     """Build inline keyboard for timezone selection."""
     timezones = [

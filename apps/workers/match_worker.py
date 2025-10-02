@@ -120,9 +120,7 @@ class MatchWorker:
 
             return match
 
-    async def _find_candidates(
-        self, db: AsyncSession, user_id: int, topics: list[str], timezone: str
-    ) -> list[int]:
+    async def _find_candidates(self, db: AsyncSession, user_id: int, topics: list[str], timezone: str) -> list[int]:
         """Find potential match candidates."""
         # Get topic IDs from slugs
         topic_result = await db.execute(select(Topic.id).where(Topic.slug.in_(topics)))
