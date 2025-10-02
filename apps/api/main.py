@@ -49,7 +49,6 @@ async def root() -> dict[str, str]:
     return {"status": "ok", "service": "ty-ne-odin"}
 
 
-
 @app.get("/metrics")
 async def metrics() -> str:
     """Prometheus metrics endpoint."""

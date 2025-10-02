@@ -1,3 +1,7 @@
+x-env-file: &env-file
+  env_file:
+    - .env
+
 services:
   # PostgreSQL Database
   db:
@@ -31,6 +35,7 @@ services:
 
   # FastAPI Application
   api:
+    <<: *env-file
     build:
       context: ..
       dockerfile: deploy/docker/api.Dockerfile
@@ -53,6 +58,7 @@ services:
 
   # Telegram Bot
   bot:
+    <<: *env-file
     build:
       context: ..
       dockerfile: deploy/docker/bot.Dockerfile
@@ -77,6 +83,7 @@ services:
 
   # Match Worker
   worker:
+    <<: *env-file
     build:
       context: ..
       dockerfile: deploy/docker/worker.Dockerfile

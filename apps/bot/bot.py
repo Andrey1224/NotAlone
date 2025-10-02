@@ -1,12 +1,11 @@
 """Main bot module with webhook setup."""
 
-import asyncio
-from aiohttp import web
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
+from aiohttp import web
 
-from apps.bot.handlers import start, profile, find, tips
+from apps.bot.handlers import find, profile, start, tips
 from apps.bot.middlewares.database import DatabaseMiddleware
 from apps.bot.middlewares.rate_limit import RateLimitMiddleware
 from core.config import settings

@@ -574,3 +574,131 @@ PUBLIC_BASE_URL=https://api.example.ru
 - Проблемы с TLS/доменом → временный ngrok/Cloudflare Tunnel (только для стейджа).
 - Telegram ограничения на webhook частоту → бэкофф и алерты.
 
+
+
+---
+
+# Sprint 2 — Матчинг 1‑на‑1 (issue‑пакет)
+**Цель спринта:** пользователь с валидным профилем нажимает «Найти собеседника» и получает предложение матча в течение 60 секунд; взаимное согласие открывает приватный чат. 
+**Definition of Ready:** профиль содержит ≥2 темы и подтверждение правил. **Definition of Done:** e2e путь работает на стейдже (EU), метрики/алерты настроены.
+
+## Диаграмма потока
+```plantuml
+@startuml
+actor User
+participant Bot
+participant API
+queue Redis as R
+Database "PostgreSQL" as DB
+
+User -> Bot: /find
+Bot -> API: POST /match/find
+API -> R: XADD match.find user_id, topics, tz
+API -> DB: recent_contacts check
+R -> API: XREADGROUP (consumer=match-worker)
+API -> DB: SELECT candidates by topics & tz
+API -> Bot: send proposal to both users (inline buttons)
+User -> Bot: Accept / Decline
+Bot -> API: POST /match/confirm
+API -> DB: create Match + ChatSession
+Bot -> User: intro + rules
+@enduml
+```
+
+## Структуры данных
+- **Redis Streams**: `match.find`
+  - Поля: `user_id`, `topics` (csv id), `tz`, `requested_at` (unix ms)
+  - Consumer group: `matchers`, consumers: `worker-1..n`
+- **PostgreSQL**: добавить таблицу `recent_contacts(user_id BIGINT, other_id BIGINT, until TIMESTAMPTZ, PRIMARY KEY(user_id, other_id))`
+- Индексы: `CREATE INDEX idx_user_topics_topic ON user_topics(topic_id);`
+
+## SQL выбора кандидатов (черновик)
+```sql
+WITH me AS (
+  SELECT :user_id AS user_id, ARRAY(SELECT topic_id FROM user_topics WHERE user_id = :user_id) AS my_topics,
+         (SELECT tz FROM users WHERE id = :user_id) AS my_tz
+), pool AS (
+  SELECT u.id AS cand_id, u.tz, ARRAY(SELECT topic_id FROM user_topics ut WHERE ut.user_id = u.id) AS cand_topics
+  FROM users u
+  WHERE u.id <> :user_id
+    AND NOT EXISTS (
+      SELECT 1 FROM recent_contacts rc
+      WHERE rc.user_id = :user_id AND rc.other_id = u.id AND rc.until > now()
+    )
+), overlap AS (
+  SELECT p.cand_id,
+         CARDINALITY(ARRAY(SELECT UNNEST(p.cand_topics) INTERSECT SELECT UNNEST(me.my_topics))) AS shared_cnt,
+         p.tz
+  FROM pool p, me
+)
+SELECT cand_id
+FROM overlap
+WHERE shared_cnt >= 2
+ORDER BY shared_cnt DESC
+LIMIT 10;
+```
+**Примечание:** фильтр по времени/часовому поясу добавляется вторым шагом: `WHERE abs(date_part('hour', timezone(me.my_tz, now()) - timezone(p.tz, now()))) <= 3` или через таблицу `avail_windows`.
+
+## Псевдокод скоринга
+```python
+def score(shared_cnt: int, time_overlap: float, helpfulness: float) -> float:
+    return 0.6 * min(shared_cnt/5, 1.0) + 0.2 * time_overlap + 0.2 * helpfulness
+```
+`helpfulness` берём как нормированную оценку последних N диалогов (0..1), по умолчанию 0.5.
+
+---
+
+## Issues (GitHub)
+
+### FEAT‑7: Очередь матчей в Redis Streams — producer/consumer (5 SP)
+**Описание:** реализовать продюсер `POST /match/find` (валидация профиля, запись в `match.find`) и воркер‑консюмер `workers/match_worker.py` (consumer group `matchers`).
+**DoD:** XADD/XREADGROUP с ack и retry; dead‑letter stream `match.dead`; idempotency ключ по `user_id` (не более 1 события в очереди). Трассировка Prometheus: `match_queue_size`, `match_worker_lag_ms`.
+
+### FEAT‑8: SQL выбор кандидатов + индексы (5 SP)
+**Описание:** реализовать запрос выбора кандидатов (см. выше) и необходимые индексы (FK, idx, GIN при переходе на массивы). Добавить `recent_contacts` и cooldown 72ч.
+**DoD:** EXPLAIN ANALYZE < 30ms на 100k пользователей с индексами (локальный бенч). Юнит‑тесты на ≥2 общих темы.
+
+### FEAT‑9: Скоринг и ранжирование (3 SP)
+**Описание:** функция `score()` + конфиг весов; сортировка кандидатов; логирование причин отказа.
+**DoD:** покрытие тестами; конфиг через env/DB; метрика `match_score_avg`.
+
+### FEAT‑10: Предложение матча и взаимное согласие (8 SP)
+**Описание:** бот отправляет обоим карточку кандидата (ник, 3 тега, био≤120, часовой пояс) с кнопками **Принять/Пропустить**; TTL предложения 5 минут; матч создаётся только при взаимном «Принять».
+**DoD:** FSM состояния `Propose → Waiting → Confirmed/Declined/Expired`; повторная попытка при истечении TTL; UX‑тексты; audit‑лог событий.
+
+### FEAT‑11: Анти‑повторы/блок/репорт (3 SP)
+**Описание:** кнопки «Пожаловаться», «Заблокировать» в интро‑сообщении; запись в `recent_contacts`/блок‑лист.
+**DoD:** заблокированные никогда не матчируются; репорт создаёт тикет в логах/админ‑канале.
+
+### FEAT‑12: Метрики/алерты матчинга (3 SP)
+**Описание:** Prometheus: `match_rate`, `accept_rate`, `proposal_ttl_expired`, `queue_lag_ms`, `sql_select_ms p95`.
+**DoD:** дашборд Grafana, алерты по лагу очереди и падению accept_rate < 25%.
+
+### FEAT‑13: Защита /find (2 SP)
+**Описание:** rate limit (per user/chat), защита от спама, анти‑флуд.
+**DoD:** 429 при превышении; метрика `find_ratelimited_total`.
+
+### FEAT‑14: Интеграционные тесты e2e (5 SP)
+**Описание:** сценарий: два тест‑пользователя → /find → предложение → взаимное «Принять» → создание `match` и `chat_session`.
+**DoD:** pytest‑suite с моками Telegram API; стабильный прогон в CI.
+
+### OPS‑2: Стейдж EU и домен webhook (2 SP)
+**Описание:** поднять стейдж в EU free‑tier (Render/Fly), домен `api.staging.<project>.ru`, TLS, webhook.
+**DoD:** /health и /metrics доступны; Telegram webhook `200 OK`.
+
+### DOC‑2: Runbook и on‑call (1 SP)
+**Описание:** инструкции по перезапуску воркера, восстановлению очереди, чистке dead‑letter, миграции индексов.
+**DoD:** README/runbook.md оформлен.
+
+---
+
+## Риски и план B
+- Лимиты бесплатных тиров → увеличить TTL предложения, снизить частоту воркера, включить автоспячку.
+- Медленные SQL при росте → GIN‑индексы по массивам тем или денормализация с материализованным представлением `user_topics_agg`.
+- «Пустые матчи» → fallback: мягкий матч (≥1 общая тема) при длительном ожидании > 5 мин.
+
+## Критерии приёмки спринта
+- ≥70% запросов /find получают предложение ≤60с на стейдже при 2 RPS.
+- `accept_rate` ≥30% на тестовых данных.
+- Полный e2e сценарий зелёный в CI; алерты настроены.
+

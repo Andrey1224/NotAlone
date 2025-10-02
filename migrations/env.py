@@ -3,15 +3,14 @@
 import asyncio
 from logging.config import fileConfig
 
+from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from alembic import context
-
 # Import Base and all models
 from core.db import Base
-from models import User, Topic, UserTopic, Match, ChatSession, Tip, AiHint, SafetyFlag  # noqa: F401
+from models import AiHint, ChatSession, Match, SafetyFlag, Tip, Topic, User, UserTopic  # noqa: F401
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

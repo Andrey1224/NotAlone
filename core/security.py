@@ -1,8 +1,5 @@
 import hashlib
 import secrets
-from typing import Optional
-
-from core.config import settings
 
 
 def generate_token(length: int = 32) -> str:
@@ -20,7 +17,7 @@ def verify_password(password: str, hashed: str) -> bool:
     return hash_password(password) == hashed
 
 
-def anonymize_text(text: str, user_id: Optional[int] = None) -> str:
+def anonymize_text(text: str, user_id: int | None = None) -> str:
     """
     Anonymize text by removing PII.
 

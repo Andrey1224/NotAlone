@@ -1,10 +1,21 @@
 """Database models."""
 
-from models.user import User
-from models.topic import Topic, UserTopic
-from models.match import Match
-from models.chat import ChatSession
-from models.tip import Tip
 from models.ai import AiHint, SafetyFlag
+from models.chat import ChatSession
+from models.match import Match
+from models.recent_contact import RecentContact
+from models.tip import Tip
+from models.topic import Topic, UserTopic
+from models.user import User
 
-__all__ = ["User", "Topic", "UserTopic", "Match", "ChatSession", "Tip", "AiHint", "SafetyFlag"]
+__all__ = [
+    "User",
+    "Topic",
+    "UserTopic",
+    "Match",
+    "ChatSession",
+    "Tip",
+    "AiHint",
+    "SafetyFlag",
+    "RecentContact",
+]

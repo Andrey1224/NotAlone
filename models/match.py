@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, String, DateTime, UniqueConstraint
+from sqlalchemy import BigInteger, Boolean, DateTime, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from core.db import Base
@@ -17,7 +17,10 @@ class Match(Base):
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default="proposed"
     )  # proposed, active, declined, expired, completed
+    user_a_accepted: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=None)
+    user_b_accepted: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     __table_args__ = (UniqueConstraint("user_a", "user_b", name="uq_match_users"),)
 
