@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from apps.workers.notifier import notifier
 from core.db import AsyncSessionLocal
 from core.redis import get_redis
 from models.match import Match
@@ -65,18 +66,21 @@ class MatchWorker:
 
                                 if match:
                                     print(f"Created match: {match.id}")
-                                    # TODO: Send notification to both users via bot
+                                    # Send notification to both users via bot
+                                    async with AsyncSessionLocal() as db:
+                                        await notifier.send_match_proposal(db, match.id, match.user_a, match.user_b)
+                                        await notifier.send_match_proposal(db, match.id, match.user_b, match.user_a)
                                 else:
                                     print(f"No match found for user {user_id}")
 
                                 # Acknowledge message
-                                await redis_client.xack(stream_name, group_name, message_id)
+                                await redis_client.xack(stream_name, group_name, message_id)  # type: ignore[no-untyped-call]
 
                             except Exception as e:
                                 print(f"Error processing message {message_id}: {e}")
                                 # Move to dead letter queue
                                 await redis_client.xadd("match.dead", message_data)
-                                await redis_client.xack(stream_name, group_name, message_id)
+                                await redis_client.xack(stream_name, group_name, message_id)  # type: ignore[no-untyped-call]
 
             except Exception as e:
                 print(f"Error in match worker loop: {e}")

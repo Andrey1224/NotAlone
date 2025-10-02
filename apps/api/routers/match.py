@@ -9,7 +9,7 @@ from apps.api.deps import get_db
 router = APIRouter()
 
 
-class MatchFindRequest(BaseModel):
+class MatchFindRequest(BaseModel):  # type: ignore[misc]
     """Request to find a match."""
 
     user_id: int
@@ -17,14 +17,15 @@ class MatchFindRequest(BaseModel):
     timezone: str
 
 
-class MatchConfirmRequest(BaseModel):
+class MatchConfirmRequest(BaseModel):  # type: ignore[misc]
     """Request to confirm a match."""
 
     match_id: int
-    user_id: int
-    accepted: bool
+    action: str  # "accept" or "decline"
+    user_id: int  # User making the action
 
 
+@router.post("/find")  # type: ignore[misc]
 async def find_match(request: MatchFindRequest, db: AsyncSession = Depends(get_db)) -> dict[str, str]:
     """Find a match for user."""
     from datetime import datetime
@@ -77,12 +78,14 @@ async def find_match(request: MatchFindRequest, db: AsyncSession = Depends(get_d
     }
 
 
+@router.post("/confirm")  # type: ignore[misc]
 async def confirm_match(request: MatchConfirmRequest, db: AsyncSession = Depends(get_db)) -> dict[str, str]:
     """Confirm or decline a match."""
     from datetime import datetime, timedelta
 
     from sqlalchemy import select
 
+    from apps.workers.notifier import notifier
     from models.chat import ChatSession
     from models.match import Match
     from models.recent_contact import RecentContact
@@ -95,8 +98,17 @@ async def confirm_match(request: MatchConfirmRequest, db: AsyncSession = Depends
     if not match:
         return {"status": "error", "message": "Match not found"}
 
-    # Get user to determine which side they are
-    user_result = await db.execute(select(User).where(User.tg_id == request.user_id))
+    # Check if expired
+    if match.expires_at and match.expires_at < datetime.utcnow():
+        match.status = "expired"
+        await db.commit()
+        return {"status": "expired", "message": "Match offer expired"}
+
+    # Parse action
+    accepted = request.action == "accept"
+
+    # Get user
+    user_result = await db.execute(select(User).where(User.id == request.user_id))
     user = user_result.scalar_one_or_none()
 
     if not user:
@@ -104,23 +116,25 @@ async def confirm_match(request: MatchConfirmRequest, db: AsyncSession = Depends
 
     # Update acceptance status
     if user.id == match.user_a:
-        match.user_a_accepted = request.accepted
+        match.user_a_accepted = accepted
+        other_user_id = match.user_b
     elif user.id == match.user_b:
-        match.user_b_accepted = request.accepted
+        match.user_b_accepted = accepted
+        other_user_id = match.user_a
     else:
         return {"status": "error", "message": "User not part of this match"}
 
     # If declined, set status and add to recent_contacts
-    if not request.accepted:
+    if not accepted:
         match.status = "declined"
         # Add to recent_contacts with 72h TTL
         until = datetime.utcnow() + timedelta(hours=72)
-        db.add(
-            RecentContact(
-                user_id=user.id, other_id=match.user_a if user.id == match.user_b else match.user_b, until=until
-            )
-        )
+        db.add(RecentContact(user_id=user.id, other_id=other_user_id, until=until))
         await db.commit()
+
+        # Notify other user
+        await notifier.send_match_declined(db, other_user_id)
+
         return {"status": "declined", "match_id": str(request.match_id)}
 
     # Check if both accepted
@@ -132,6 +146,10 @@ async def confirm_match(request: MatchConfirmRequest, db: AsyncSession = Depends
         db.add(chat_session)
 
         await db.commit()
+
+        # Send intro message to both users
+        await notifier.send_match_active(db, match.user_a, match.user_b)
+        await notifier.send_match_active(db, match.user_b, match.user_a)
 
         return {
             "status": "active",
