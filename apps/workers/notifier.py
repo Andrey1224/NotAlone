@@ -56,7 +56,7 @@ class Notifier:
             """.strip()
 
             await self.bot.send_message(
-                chat_id=user.tg_id, text=text, reply_markup=get_match_confirmation_keyboard(match_id)
+                chat_id=user.tg_id, text=text, reply_markup=get_match_confirmation_keyboard(match_id, user_id)
             )
 
             return True

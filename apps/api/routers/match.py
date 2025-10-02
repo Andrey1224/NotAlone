@@ -98,6 +98,10 @@ async def confirm_match(request: MatchConfirmRequest, db: AsyncSession = Depends
     if not match:
         return {"status": "error", "message": "Match not found"}
 
+    # SECURITY: Check match is in proposed state (prevent re-processing)
+    if match.status != "proposed":
+        return {"status": "error", "message": f"Match not in proposed state (current: {match.status})"}
+
     # Check if expired
     if match.expires_at and match.expires_at < datetime.utcnow():
         match.status = "expired"
@@ -114,6 +118,10 @@ async def confirm_match(request: MatchConfirmRequest, db: AsyncSession = Depends
     if not user:
         return {"status": "error", "message": "User not found"}
 
+    # SECURITY: Validate user is part of this match
+    if user.id not in (match.user_a, match.user_b):
+        return {"status": "error", "message": "User not part of this match"}
+
     # Update acceptance status
     if user.id == match.user_a:
         match.user_a_accepted = accepted
@@ -122,14 +130,16 @@ async def confirm_match(request: MatchConfirmRequest, db: AsyncSession = Depends
         match.user_b_accepted = accepted
         other_user_id = match.user_a
     else:
+        # This should never happen due to check above, but keep for safety
         return {"status": "error", "message": "User not part of this match"}
 
     # If declined, set status and add to recent_contacts
     if not accepted:
         match.status = "declined"
-        # Add to recent_contacts with 72h TTL
+        # Add to recent_contacts with 72h TTL (bidirectional to prevent reverse matches)
         until = datetime.utcnow() + timedelta(hours=72)
         db.add(RecentContact(user_id=user.id, other_id=other_user_id, until=until))
+        db.add(RecentContact(user_id=other_user_id, other_id=user.id, until=until))
         await db.commit()
 
         # Notify other user

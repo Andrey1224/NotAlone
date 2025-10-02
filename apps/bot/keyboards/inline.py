@@ -55,12 +55,18 @@ def get_timezones_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-def get_match_confirmation_keyboard(match_id: int) -> InlineKeyboardMarkup:
-    """Build keyboard for match confirmation."""
+def get_match_confirmation_keyboard(match_id: int, user_id: int) -> InlineKeyboardMarkup:
+    """Build keyboard for match confirmation with HMAC signature."""
+    from core.security import generate_callback_hmac
+
+    # Generate HMAC for each action
+    accept_hmac = generate_callback_hmac(match_id, user_id)
+    decline_hmac = generate_callback_hmac(match_id, user_id)
+
     buttons = [
         [
-            InlineKeyboardButton(text="✅ Принять", callback_data=f"match_accept_{match_id}"),
-            InlineKeyboardButton(text="❌ Отклонить", callback_data=f"match_decline_{match_id}"),
+            InlineKeyboardButton(text="✅ Принять", callback_data=f"match_accept_{match_id}_{accept_hmac}"),
+            InlineKeyboardButton(text="❌ Отклонить", callback_data=f"match_decline_{match_id}_{decline_hmac}"),
         ]
     ]
 

@@ -55,9 +55,15 @@ async def cmd_find(message: Message, db: AsyncSession) -> None:
 
 @router.callback_query(F.data.startswith("match_accept_"))  # type: ignore[misc]
 async def handle_match_accept(callback: CallbackQuery, db: AsyncSession) -> None:
-    """Handle match acceptance."""
-    # Extract match_id from callback data
-    match_id = int(callback.data.split("_")[2])
+    """Handle match acceptance with HMAC verification and idempotency."""
+    # Parse callback data: match_accept_{match_id}_{hmac}
+    parts = callback.data.split("_")
+    if len(parts) != 4:
+        await callback.answer("❌ Неверный формат данных", show_alert=True)
+        return
+
+    match_id = int(parts[2])
+    provided_hmac = parts[3]
 
     # Get user from database
     result = await db.execute(select(User).where(User.tg_id == callback.from_user.id))
@@ -65,6 +71,26 @@ async def handle_match_accept(callback: CallbackQuery, db: AsyncSession) -> None
 
     if not user:
         await callback.answer("❌ Пользователь не найден", show_alert=True)
+        return
+
+    # SECURITY: Verify HMAC signature
+    from core.security import verify_callback_hmac
+
+    if not verify_callback_hmac(match_id, user.id, provided_hmac):
+        await callback.answer("❌ Неверная подпись запроса", show_alert=True)
+        return
+
+    # IDEMPOTENCY: Check if already processed via Redis
+    from core.redis import get_redis
+
+    redis_client = await get_redis()
+    idempotency_key = f"confirm:{callback.id}"
+
+    # Try to set idempotency key (SETNX)
+    is_first_time = await redis_client.set(idempotency_key, "1", nx=True, ex=60)
+
+    if not is_first_time:
+        await callback.answer("⏳ Уже обрабатывается...", show_alert=True)
         return
 
     try:
@@ -93,9 +119,15 @@ async def handle_match_accept(callback: CallbackQuery, db: AsyncSession) -> None
 
 @router.callback_query(F.data.startswith("match_decline_"))  # type: ignore[misc]
 async def handle_match_decline(callback: CallbackQuery, db: AsyncSession) -> None:
-    """Handle match decline."""
-    # Extract match_id from callback data
-    match_id = int(callback.data.split("_")[2])
+    """Handle match decline with HMAC verification and idempotency."""
+    # Parse callback data: match_decline_{match_id}_{hmac}
+    parts = callback.data.split("_")
+    if len(parts) != 4:
+        await callback.answer("❌ Неверный формат данных", show_alert=True)
+        return
+
+    match_id = int(parts[2])
+    provided_hmac = parts[3]
 
     # Get user from database
     result = await db.execute(select(User).where(User.tg_id == callback.from_user.id))
@@ -103,6 +135,26 @@ async def handle_match_decline(callback: CallbackQuery, db: AsyncSession) -> Non
 
     if not user:
         await callback.answer("❌ Пользователь не найден", show_alert=True)
+        return
+
+    # SECURITY: Verify HMAC signature
+    from core.security import verify_callback_hmac
+
+    if not verify_callback_hmac(match_id, user.id, provided_hmac):
+        await callback.answer("❌ Неверная подпись запроса", show_alert=True)
+        return
+
+    # IDEMPOTENCY: Check if already processed via Redis
+    from core.redis import get_redis
+
+    redis_client = await get_redis()
+    idempotency_key = f"confirm:{callback.id}"
+
+    # Try to set idempotency key (SETNX)
+    is_first_time = await redis_client.set(idempotency_key, "1", nx=True, ex=60)
+
+    if not is_first_time:
+        await callback.answer("⏳ Уже обрабатывается...", show_alert=True)
         return
 
     try:

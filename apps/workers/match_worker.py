@@ -116,13 +116,40 @@ class MatchWorker:
                 return None
 
             # Create match with 5 minute expiry
+            # Use ordered pair (u_lo, u_hi) to prevent duplicate matches
+            u_lo, u_hi = sorted([user_id, best_candidate])
             expires_at = datetime.utcnow() + timedelta(minutes=5)
-            match = Match(user_a=user_id, user_b=best_candidate, status="proposed", expires_at=expires_at)
-            db.add(match)
-            await db.commit()
-            await db.refresh(match)
 
-            return match
+            match = Match(
+                user_a=user_id,
+                user_b=best_candidate,
+                u_lo=u_lo,
+                u_hi=u_hi,
+                status="proposed",
+                expires_at=expires_at,
+            )
+
+            try:
+                db.add(match)
+                await db.commit()
+                await db.refresh(match)
+                return match
+            except Exception as e:
+                # Handle duplicate match race condition (unique index violation)
+                await db.rollback()
+                print(f"Match creation failed (likely duplicate): {e}")
+                # Try to find existing match
+                from sqlalchemy import and_, select
+
+                result = await db.execute(
+                    select(Match).where(and_(Match.u_lo == u_lo, Match.u_hi == u_hi, Match.status == "proposed"))
+                )
+                existing_match = result.scalar_one_or_none()
+                if existing_match:
+                    print(f"Found existing match: {existing_match.id}")
+                    return existing_match
+                # If no existing match found, re-raise
+                raise
 
     async def _find_candidates(self, db: AsyncSession, user_id: int, topics: list[str], timezone: str) -> list[int]:
         """Find potential match candidates."""
