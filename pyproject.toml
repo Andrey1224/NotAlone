@@ -61,6 +61,8 @@ strict = true
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
+explicit_package_bases = true
+mypy_path = "$MYPY_CONFIG_FILE_DIR"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

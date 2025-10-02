@@ -1,11 +1,11 @@
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from apps.api.middlewares.metrics import MetricsMiddleware
-from apps.api.routers import health, match, payments
+from apps.api.routers import health, match, payments, telegram
 from core import close_redis
 from core.config import settings
 
@@ -40,6 +40,7 @@ app.add_middleware(
 app.include_router(health.router, prefix="/health", tags=["health"])
 app.include_router(match.router, prefix="/match", tags=["match"])
 app.include_router(payments.router, prefix="/payments", tags=["payments"])
+app.include_router(telegram.router, prefix="/telegram", tags=["telegram"])
 
 
 @app.get("/")
@@ -52,7 +53,7 @@ async def root() -> dict[str, str]:
 @app.get("/metrics")
 async def metrics() -> str:
     """Prometheus metrics endpoint."""
-    from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
     from fastapi import Response
+    from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
