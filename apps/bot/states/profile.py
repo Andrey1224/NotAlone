@@ -11,3 +11,4 @@ class ProfileForm(StatesGroup):
     topics = State()
     bio = State()
     safety_confirmation = State()
+    edit_topics = State()

@@ -5,7 +5,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 from aiohttp import web
 
-from apps.bot.handlers import find, profile, start, tips
+from apps.bot.handlers import chat, end, find, profile, start, tips
 from apps.bot.middlewares.database import DatabaseMiddleware
 from apps.bot.middlewares.rate_limit import RateLimitMiddleware
 from core.config import settings
@@ -24,7 +24,10 @@ dp.message.middleware(RateLimitMiddleware())
 dp.include_router(start.router)
 dp.include_router(profile.router)
 dp.include_router(find.router)
+dp.include_router(end.router)
 dp.include_router(tips.router)
+# IMPORTANT: chat.router must be LAST - it's a catch-all for text messages
+dp.include_router(chat.router)
 
 
 async def on_startup(app: web.Application) -> None:

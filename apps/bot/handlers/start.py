@@ -51,6 +51,7 @@ async def cmd_help(message: Message) -> None:
 /start - начать
 /profile - профиль
 /find - найти собеседника
+/edit_topics - изменить темы
 /tips - оставить чаевые
     """.strip()
 

@@ -65,13 +65,25 @@ class MatchWorker:
                                 match = await self.process_match_request(user_id, topics, timezone)
 
                                 if match:
-                                    print(f"Created match: {match.id}")
+                                    print(f"[WORKER] Created match: {match.id}")
                                     # Send notification to both users via bot
+                                    print(f"[WORKER] Sending notifications for match {match.id}...")
                                     async with AsyncSessionLocal() as db:
-                                        await notifier.send_match_proposal(db, match.id, match.user_a, match.user_b)
-                                        await notifier.send_match_proposal(db, match.id, match.user_b, match.user_a)
+                                        print(f"[WORKER] Notifying user_a={match.user_a}...")
+                                        result_a = await notifier.send_match_proposal(
+                                            db, match.id, match.user_a, match.user_b
+                                        )
+                                        print(f"[WORKER] User A notification result: {result_a}")
+
+                                        print(f"[WORKER] Notifying user_b={match.user_b}...")
+                                        result_b = await notifier.send_match_proposal(
+                                            db, match.id, match.user_b, match.user_a
+                                        )
+                                        print(f"[WORKER] User B notification result: {result_b}")
+
+                                    print(f"[WORKER] ✅ Match {match.id} notifications completed")
                                 else:
-                                    print(f"No match found for user {user_id}")
+                                    print(f"[WORKER] No match found for user {user_id}")
 
                                 # Acknowledge message
                                 await redis_client.xack(stream_name, group_name, message_id)  # type: ignore[no-untyped-call]

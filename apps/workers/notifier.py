@@ -32,17 +32,25 @@ class Notifier:
         Returns:
             True if sent successfully
         """
+        logger.info(
+            f"[NOTIFIER] Starting send_match_proposal: match_id={match_id}, user_id={user_id}, partner_id={partner_id}"
+        )
         try:
             # Get user and partner info
+            logger.info(f"[NOTIFIER] Fetching user {user_id} from database...")
             user_result = await db.execute(select(User).where(User.id == user_id))
             user = user_result.scalar_one_or_none()
 
+            logger.info(f"[NOTIFIER] Fetching partner {partner_id} from database...")
             partner_result = await db.execute(select(User).where(User.id == partner_id))
             partner = partner_result.scalar_one_or_none()
 
             if not user or not partner:
-                logger.error(f"User or partner not found: user={user_id}, partner={partner_id}")
+                logger.error(f"[NOTIFIER] User or partner not found: user={user_id}, partner={partner_id}")
                 return False
+
+            logger.info(f"[NOTIFIER] Found user: tg_id={user.tg_id}, nickname={user.nickname}")
+            logger.info(f"[NOTIFIER] Found partner: tg_id={partner.tg_id}, nickname={partner.nickname}")
 
             # Send notification via bot
             text = f"""
@@ -55,14 +63,16 @@ class Notifier:
 У вас есть 5 минут, чтобы принять или отклонить предложение.
             """.strip()
 
+            logger.info(f"[NOTIFIER] Sending message to chat_id={user.tg_id}...")
             await self.bot.send_message(
                 chat_id=user.tg_id, text=text, reply_markup=get_match_confirmation_keyboard(match_id, user_id)
             )
 
+            logger.info(f"[NOTIFIER] ✅ Successfully sent match proposal to user {user_id} (tg_id={user.tg_id})")
             return True
 
         except Exception as e:
-            logger.error(f"Failed to send match proposal to user {user_id}: {e}")
+            logger.error(f"[NOTIFIER] ❌ Failed to send match proposal to user {user_id}: {e}", exc_info=True)
             return False
 
     async def send_match_active(self, db: AsyncSession, user_id: int, partner_id: int) -> bool:

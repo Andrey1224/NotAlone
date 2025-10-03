@@ -1,10 +1,10 @@
 """Profile management handlers."""
 
 from aiogram import F, Router
-from aiogram.filters import Command
+from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.bot.keyboards.inline import get_timezones_keyboard, get_topics_keyboard
@@ -28,7 +28,7 @@ async def cmd_profile(message: Message, state: FSMContext, db: AsyncSession) -> 
         # Start profile creation
         await state.set_state(ProfileForm.nickname)
         await message.answer(
-            "👤 Давайте создадим ваш профиль!\n\n" "Введите псевдоним (как вас будут видеть собеседники):"
+            "👤 Давайте создадим ваш профиль!\n\nВведите псевдоним (как вас будут видеть собеседники):"
         )
 
 
@@ -45,7 +45,7 @@ async def show_profile(message: Message, user: User, db: AsyncSession) -> None:
 👤 Псевдоним: {user.nickname}
 🌍 Часовой пояс: {user.tz}
 💬 Темы: {topics_text}
-📝 О себе: {user.bio_short or 'не указано'}
+📝 О себе: {user.bio_short or "не указано"}
 
 Для редактирования используйте команды:
 /edit_nickname - изменить псевдоним
@@ -54,6 +54,42 @@ async def show_profile(message: Message, user: User, db: AsyncSession) -> None:
     """.strip()
 
     await message.answer(profile_text)
+
+
+@router.message(Command("edit_topics"))
+async def cmd_edit_topics(message: Message, state: FSMContext, db: AsyncSession) -> None:
+    """Handle /edit_topics command - allow updating saved topics."""
+    print(f"DEBUG: /edit_topics command received from user {message.from_user.id}")
+
+    result = await db.execute(select(User).where(User.tg_id == message.from_user.id))
+    user = result.scalar_one_or_none()
+    print(f"DEBUG: User found: {user is not None}")
+
+    if not user:
+        print("DEBUG: User not found, sending create profile message")
+        await message.answer("Сначала создайте профиль командой /profile.")
+        return
+
+    topics_result = await db.execute(select(Topic.slug).join(UserTopic).where(UserTopic.user_id == user.id))
+    selected_topics = set(topics_result.scalars().all())
+    print(f"DEBUG: Selected topics: {selected_topics}")
+
+    await state.clear()
+    await state.set_state(ProfileForm.edit_topics)
+    await state.update_data(user_id=user.id, selected_topics=selected_topics)
+
+    print("DEBUG: About to send topics keyboard")
+    try:
+        await message.answer(
+            "📌 Обновите список интересующих тем.\n"
+            "Нажимайте на кнопки, чтобы выбрать или убрать тему.\n"
+            "Когда закончите, нажмите «Готово».",
+            reply_markup=get_topics_keyboard(selected_topics),
+        )
+        print("DEBUG: Topics keyboard sent successfully")
+    except Exception as e:
+        print(f"DEBUG: Error sending topics keyboard: {e}")
+        raise
 
 
 @router.message(ProfileForm.nickname)
@@ -69,7 +105,7 @@ async def process_nickname(message: Message, state: FSMContext) -> None:
     await state.set_state(ProfileForm.timezone)
 
     await message.answer(
-        f"✅ Отлично, {nickname}!\n\n" "🌍 Теперь выберите ваш часовой пояс:", reply_markup=get_timezones_keyboard()
+        f"✅ Отлично, {nickname}!\n\n🌍 Теперь выберите ваш часовой пояс:", reply_markup=get_timezones_keyboard()
     )
 
 
@@ -89,33 +125,39 @@ async def process_timezone(callback: CallbackQuery, state: FSMContext, db: Async
     await callback.answer()
 
 
-@router.callback_query(F.data.startswith("topic_"), ProfileForm.topics)
+@router.callback_query(StateFilter(ProfileForm.topics, ProfileForm.edit_topics), F.data.startswith("topic_"))
 async def process_topic_selection(callback: CallbackQuery, state: FSMContext, db: AsyncSession) -> None:
     """Process topic selection (toggle)."""
     topic_slug = callback.data.split("_", 1)[1]
+    print(f"DEBUG: Topic button pressed: {topic_slug}")
 
     # Get current selected topics
     data = await state.get_data()
-    selected_topics = data.get("selected_topics", set())
+    selected_topics = set(data.get("selected_topics", set()))
+    print(f"DEBUG: Current selected topics: {selected_topics}")
 
     # Toggle topic
     if topic_slug in selected_topics:
         selected_topics.remove(topic_slug)
+        print(f"DEBUG: Removed topic {topic_slug}")
     else:
         selected_topics.add(topic_slug)
+        print(f"DEBUG: Added topic {topic_slug}")
 
     await state.update_data(selected_topics=selected_topics)
+    print(f"DEBUG: Updated state with topics: {selected_topics}")
 
     # Update keyboard
     await callback.message.edit_reply_markup(reply_markup=get_topics_keyboard(selected_topics))
     await callback.answer(f"Выбрано тем: {len(selected_topics)}")
+    print("DEBUG: Updated keyboard and sent callback answer")
 
 
-@router.callback_query(F.data == "topics_done", ProfileForm.topics)
+@router.callback_query(StateFilter(ProfileForm.topics), F.data == "topics_done")
 async def process_topics_done(callback: CallbackQuery, state: FSMContext) -> None:
     """Finish topic selection."""
     data = await state.get_data()
-    selected_topics = data.get("selected_topics", set())
+    selected_topics = set(data.get("selected_topics", set()))
 
     if len(selected_topics) < 2:
         await callback.answer("Выберите минимум 2 темы", show_alert=True)
@@ -128,6 +170,54 @@ async def process_topics_done(callback: CallbackQuery, state: FSMContext) -> Non
         "Или отправьте /skip чтобы пропустить этот шаг."
     )
     await callback.answer()
+
+
+@router.callback_query(StateFilter(ProfileForm.edit_topics), F.data == "topics_done")
+async def process_topics_done_edit(callback: CallbackQuery, state: FSMContext, db: AsyncSession) -> None:
+    """Persist updated topics when editing profile."""
+    print("DEBUG: topics_done button pressed in edit mode")
+
+    data = await state.get_data()
+    selected_topics = set(data.get("selected_topics", set()))
+    print(f"DEBUG: Selected topics from state: {selected_topics}")
+
+    if len(selected_topics) < 2:
+        print("DEBUG: Not enough topics selected (< 2)")
+        await callback.answer("Выберите минимум 2 темы", show_alert=True)
+        return
+
+    user_id = data.get("user_id")
+    print(f"DEBUG: User ID from state: {user_id}")
+    if user_id is None:
+        print("DEBUG: User ID is None, clearing state")
+        await callback.answer("Не удалось сохранить темы, попробуйте ещё раз", show_alert=True)
+        await state.clear()
+        return
+
+    print(f"DEBUG: Deleting old topics for user {user_id}")
+    await db.execute(delete(UserTopic).where(UserTopic.user_id == user_id))
+
+    if selected_topics:
+        print(f"DEBUG: Adding new topics: {selected_topics}")
+        topics_result = await db.execute(select(Topic).where(Topic.slug.in_(selected_topics)))
+        topics = topics_result.scalars().all()
+        print(f"DEBUG: Found {len(topics)} topics in database")
+        for topic in topics:
+            print(f"DEBUG: Adding topic {topic.slug} (ID: {topic.id}) for user {user_id}")
+            db.add(UserTopic(user_id=user_id, topic_id=topic.id, weight=1))
+
+    print("DEBUG: Committing changes to database")
+    await db.commit()
+    print("DEBUG: Changes committed successfully")
+
+    user_result = await db.execute(select(User).where(User.id == user_id))
+    user = user_result.scalar_one()
+
+    await callback.message.edit_text("✅ Темы обновлены.")
+    await show_profile(callback.message, user, db)
+    await callback.answer()
+    await state.clear()
+    print("DEBUG: Edit topics process completed")
 
 
 @router.message(ProfileForm.bio, Command("skip"))
@@ -145,7 +235,7 @@ async def process_bio(message: Message, state: FSMContext) -> None:
 
     if len(bio) > 160:
         await message.answer(
-            f"Описание слишком длинное ({len(bio)} символов). " "Максимум 160 символов. Попробуйте короче:"
+            f"Описание слишком длинное ({len(bio)} символов). Максимум 160 символов. Попробуйте короче:"
         )
         return
 
@@ -212,7 +302,7 @@ async def process_safety_confirmation(callback: CallbackQuery, state: FSMContext
     await db.commit()
 
     await callback.message.edit_text(
-        f"✅ Профиль создан, {user.nickname}!\n\n" "Теперь вы можете найти собеседника командой /find"
+        f"✅ Профиль создан, {user.nickname}!\n\nТеперь вы можете найти собеседника командой /find"
     )
     await callback.answer()
     await state.clear()

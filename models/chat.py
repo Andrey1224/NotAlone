@@ -15,6 +15,8 @@ class ChatSession(Base):
     match_id: Mapped[int] = mapped_column(BigInteger, unique=True, nullable=False, index=True)
     started_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    msg_count_a: Mapped[int] = mapped_column(Integer, nullable=False, default=0)  # Message count from user_a
+    msg_count_b: Mapped[int] = mapped_column(Integer, nullable=False, default=0)  # Message count from user_b
     rating_a: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 1-5 rating from user_a
     rating_b: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 1-5 rating from user_b
 

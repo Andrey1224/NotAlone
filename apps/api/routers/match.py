@@ -28,6 +28,10 @@ class MatchConfirmRequest(BaseModel):  # type: ignore[misc]
 @router.post("/find")  # type: ignore[misc]
 async def find_match(request: MatchFindRequest, db: AsyncSession = Depends(get_db)) -> dict[str, str]:
     """Find a match for user."""
+    print(
+        f"DEBUG: Received match request: user_id={request.user_id}, topics={request.topics}, timezone={request.timezone}"
+    )
+
     from datetime import datetime
 
     from sqlalchemy import select
@@ -38,11 +42,14 @@ async def find_match(request: MatchFindRequest, db: AsyncSession = Depends(get_d
     # Validate user exists and has profile with ≥2 topics
     result = await db.execute(select(User).where(User.tg_id == request.user_id))
     user = result.scalar_one_or_none()
+    print(f"DEBUG: Found user: {user.nickname if user else 'None'}")
 
     if not user:
+        print("DEBUG: User not found")
         return {"status": "error", "message": "User not found"}
 
     if not user.safety_ack:
+        print("DEBUG: Safety acknowledgement required")
         return {"status": "error", "message": "Safety acknowledgement required"}
 
     # Check user has ≥2 topics
@@ -52,12 +59,15 @@ async def find_match(request: MatchFindRequest, db: AsyncSession = Depends(get_d
 
     topic_count_result = await db.execute(select(func.count(UserTopic.topic_id)).where(UserTopic.user_id == user.id))
     topic_count = topic_count_result.scalar()
+    print(f"DEBUG: User has {topic_count} topics")
 
     if topic_count < 2:
+        print("DEBUG: Not enough topics")
         return {"status": "error", "message": "At least 2 topics required"}
 
     # Add to Redis Stream
     redis_client = await get_redis_client()
+    print("DEBUG: Got Redis client")
 
     payload = {
         "user_id": str(user.id),
@@ -66,9 +76,11 @@ async def find_match(request: MatchFindRequest, db: AsyncSession = Depends(get_d
         "timezone": request.timezone,
         "requested_at": datetime.utcnow().isoformat(),
     }
+    print(f"DEBUG: Payload for Redis: {payload}")
 
     # XADD to match.find stream
     stream_id = await redis_client.xadd("match.find", payload)
+    print(f"DEBUG: Added to Redis stream with ID: {stream_id}")
 
     return {
         "status": "queued",
@@ -83,7 +95,7 @@ async def confirm_match(request: MatchConfirmRequest, db: AsyncSession = Depends
     """Confirm or decline a match."""
     from datetime import datetime, timedelta
 
-    from sqlalchemy import select
+    from sqlalchemy import and_, or_, select
 
     from apps.workers.notifier import notifier
     from models.chat import ChatSession
@@ -149,6 +161,42 @@ async def confirm_match(request: MatchConfirmRequest, db: AsyncSession = Depends
 
     # Check if both accepted
     if match.user_a_accepted and match.user_b_accepted:
+        # CLOSE ALL OTHER ACTIVE CHATS FOR BOTH USERS
+        # This prevents multiple active chats issue
+
+        # Close all other active sessions for both users
+        close_sessions_result = await db.execute(
+            select(ChatSession)
+            .join(Match, ChatSession.match_id == Match.id)
+            .where(
+                and_(
+                    ChatSession.ended_at.is_(None),
+                    Match.status == "active",
+                    or_(Match.user_a.in_([match.user_a, match.user_b]), Match.user_b.in_([match.user_a, match.user_b])),
+                    Match.id != match.id,
+                )
+            )
+        )
+
+        old_sessions = close_sessions_result.scalars().all()
+        for old_session in old_sessions:
+            old_session.ended_at = datetime.utcnow()
+
+        # Also close the matches themselves
+        close_matches_result = await db.execute(
+            select(Match).where(
+                and_(
+                    Match.status == "active",
+                    or_(Match.user_a.in_([match.user_a, match.user_b]), Match.user_b.in_([match.user_a, match.user_b])),
+                    Match.id != match.id,
+                )
+            )
+        )
+
+        old_matches = close_matches_result.scalars().all()
+        for old_match in old_matches:
+            old_match.status = "completed"
+
         match.status = "active"
 
         # Create chat session

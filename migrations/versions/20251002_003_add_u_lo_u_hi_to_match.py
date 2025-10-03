@@ -24,11 +24,13 @@ def upgrade() -> None:
     op.add_column("matches", sa.Column("u_hi", sa.BigInteger(), nullable=True))
 
     # Populate existing rows with ordered pairs
-    op.execute("""
+    op.execute(
+        """
         UPDATE matches
         SET u_lo = LEAST(user_a, user_b),
             u_hi = GREATEST(user_a, user_b)
-    """)
+    """
+    )
 
     # Make columns NOT NULL
     op.alter_column("matches", "u_lo", nullable=False)
@@ -39,11 +41,13 @@ def upgrade() -> None:
     op.create_index(op.f("ix_matches_u_hi"), "matches", ["u_hi"], unique=False)
 
     # Create unique partial index for proposed matches
-    op.execute("""
+    op.execute(
+        """
         CREATE UNIQUE INDEX idx_match_pair_proposed
         ON matches (u_lo, u_hi)
         WHERE status = 'proposed'
-    """)
+    """
+    )
 
 
 def downgrade() -> None:

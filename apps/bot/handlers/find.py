@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.bot.api_client import api_client
 from models import User, UserTopic
+from models.topic import Topic
 
 router = Router()
 
@@ -36,9 +37,20 @@ async def cmd_find(message: Message, db: AsyncSession) -> None:
         await message.answer("❌ Подтвердите правила безопасности в профиле: /profile")
         return
 
+    # Get user's topics for the API request
+    topics_result = await db.execute(select(Topic.slug).join(UserTopic).where(UserTopic.user_id == user.id))
+    user_topics = topics_result.scalars().all()
+
     # Add user to match queue via API
     try:
-        response = await api_client.post("/match/find", json={"user_id": user.id})
+        response = await api_client.post(
+            "/match/find",
+            json={
+                "user_id": user.tg_id,  # Use tg_id as expected by API
+                "topics": list(user_topics),
+                "timezone": user.tz,
+            },
+        )
         if response.get("status") == "queued":
             await message.answer(
                 "🔍 Ищу для вас собеседника...\n\n"

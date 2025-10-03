@@ -14,7 +14,8 @@ class ApiClient:
     """HTTP client for API service."""
 
     def __init__(self) -> None:
-        self.base_url = f"http://localhost:{settings.api_port}"
+        # In Docker, use service name instead of localhost
+        self.base_url = f"http://api:{settings.api_port}"
         self.client = httpx.AsyncClient(base_url=self.base_url, timeout=30.0)
 
     async def close(self) -> None:
