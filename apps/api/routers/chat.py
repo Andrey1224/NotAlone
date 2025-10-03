@@ -153,4 +153,9 @@ async def end_chat(request: EndChatRequest, db: AsyncSession = Depends(get_db)) 
 
     await db.commit()
 
-    return {"peer_tg_id": peer.tg_id, "status": "ended", "chat_session_id": chat_session.id}
+    return {
+        "peer_tg_id": peer.tg_id,
+        "match_id": match.id,
+        "status": "ended",
+        "chat_session_id": chat_session.id,
+    }

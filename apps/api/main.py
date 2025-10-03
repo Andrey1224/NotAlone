@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from apps.api.middlewares.metrics import MetricsMiddleware
-from apps.api.routers import chat, health, match, payments, telegram
+from apps.api.routers import chat, health, match, payments, telegram, tips
 from core import close_redis
 from core.config import settings
 
@@ -40,6 +40,7 @@ app.add_middleware(
 app.include_router(health.router, prefix="/health", tags=["health"])
 app.include_router(match.router, prefix="/match", tags=["match"])
 app.include_router(chat.router, prefix="/chat", tags=["chat"])
+app.include_router(tips.router)  # Already has /tips prefix
 app.include_router(payments.router, prefix="/payments", tags=["payments"])
 app.include_router(telegram.router, prefix="/telegram", tags=["telegram"])
 

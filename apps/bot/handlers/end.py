@@ -60,25 +60,52 @@ async def handle_end_confirm(callback: CallbackQuery) -> None:
         response = await api_client.post("/chat/end", json={"user_id": user_id})
 
         peer_tg_id = response.get("peer_tg_id")
+        match_id = response.get("match_id")
+
+        # Create tips CTA keyboard for initiator
+        tips_keyboard = None
+        if match_id and peer_tg_id:
+            from apps.bot.handlers.tips import PRESETS
+
+            buttons = []
+            for amount in PRESETS[:2]:  # Show only first 2 presets (5, 10 Stars)
+                callback_data = f"tip:{match_id}:{peer_tg_id}:{amount}"
+                buttons.append(InlineKeyboardButton(text=f"💙 Отправить {amount} ⭐", callback_data=callback_data))
+
+            tips_keyboard = InlineKeyboardMarkup(inline_keyboard=[buttons])
 
         # Notify initiator
         await callback.message.edit_text(
             "✅ Диалог завершён. Спасибо за общение!\n\n"
-            "💚 Вы можете начать новый поиск командой /find\n"
-            "💸 Если хотите поддержать собеседника, используйте /tips"
+            "💚 Вы можете начать новый поиск командой /find\n\n"
+            "💙 Хотите поблагодарить собеседника?",
+            reply_markup=tips_keyboard,
         )
 
-        # Notify peer
+        # Notify peer with tips CTA
         if peer_tg_id:
             # Lazy import to avoid circular dependency
             from apps.bot.bot import bot
+
+            # Create tips keyboard for peer (reverse: peer can tip the initiator)
+            peer_tips_keyboard = None
+            if match_id and callback.from_user:
+                from apps.bot.handlers.tips import PRESETS
+
+                buttons = []
+                for amount in PRESETS[:2]:  # Show only first 2 presets
+                    callback_data = f"tip:{match_id}:{callback.from_user.id}:{amount}"
+                    buttons.append(InlineKeyboardButton(text=f"💙 Отправить {amount} ⭐", callback_data=callback_data))
+
+                peer_tips_keyboard = InlineKeyboardMarkup(inline_keyboard=[buttons])
 
             await bot.send_message(
                 chat_id=peer_tg_id,
                 text="📞 Собеседник завершил диалог.\n\n"
                 "Спасибо за общение! Надеемся, что разговор был полезным.\n\n"
-                "💚 Вы можете начать новый поиск командой /find\n"
-                "💸 Если хотите поблагодарить собеседника, используйте /tips",
+                "💚 Вы можете начать новый поиск командой /find\n\n"
+                "💙 Хотите поблагодарить собеседника?",
+                reply_markup=peer_tips_keyboard,
             )
 
         await callback.answer()

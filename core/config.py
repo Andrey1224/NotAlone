@@ -29,6 +29,7 @@ class Settings(BaseSettings):
 
     # Payments
     telegram_stars_enabled: bool = True
+    tips_hmac_secret: str  # HMAC secret for signing tips payloads (32+ bytes)
 
     # Security
     secret_key: str

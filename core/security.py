@@ -1,3 +1,4 @@
+import base64
 import hashlib
 import hmac
 import secrets
@@ -73,3 +74,44 @@ def verify_callback_hmac(match_id: int, user_id: int, provided_hmac: str) -> boo
     """
     expected_hmac = generate_callback_hmac(match_id, user_id)
     return hmac.compare_digest(expected_hmac, provided_hmac)
+
+
+def _b64u(data: bytes) -> str:
+    """Base64url encode without padding."""
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
+
+
+def sign_tips_payload(payload: str) -> str:
+    """
+    Sign tips payload using HMAC-SHA256.
+
+    Args:
+        payload: String to sign (format: "match_id:from_tg:to_tg:amount")
+
+    Returns:
+        Signed payload in format "payload.signature_base64url"
+    """
+    secret = settings.tips_hmac_secret.encode()
+    mac = hmac.new(secret, payload.encode(), hashlib.sha256).digest()
+    return f"{payload}.{_b64u(mac)}"
+
+
+def verify_tips_payload(signed: str) -> tuple[bool, str]:
+    """
+    Verify HMAC signature of tips payload using constant-time comparison.
+
+    Args:
+        signed: Signed payload in format "payload.signature_base64url"
+
+    Returns:
+        Tuple of (is_valid, original_payload).
+        If invalid, returns (False, "").
+    """
+    try:
+        payload, sig = signed.rsplit(".", 1)
+        secret = settings.tips_hmac_secret.encode()
+        mac = hmac.new(secret, payload.encode(), hashlib.sha256).digest()
+        valid = hmac.compare_digest(_b64u(mac), sig)
+        return (valid, payload if valid else "")
+    except (ValueError, AttributeError):
+        return (False, "")

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, DateTime, Index, String
+from sqlalchemy import BigInteger, DateTime, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from core.db import Base
@@ -22,8 +22,13 @@ class Tip(Base):
     our_commission_minor: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")  # pending, paid, failed
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    telegram_payment_id: Mapped[str | None] = mapped_column(String(128), nullable=True)  # For idempotency
+    invoice_payload: Mapped[str | None] = mapped_column(Text, nullable=True)  # Signed HMAC payload
 
-    __table_args__ = (Index("idx_tips_match_id", "match_id"),)
+    __table_args__ = (
+        Index("idx_tips_match_id", "match_id"),
+        Index("idx_tips_telegram_payment_id", "telegram_payment_id"),
+    )
 
     def __repr__(self) -> str:
         return f"<Tip(id={self.id}, from_user={self.from_user}, to_user={self.to_user}, amount={self.amount_minor})>"
