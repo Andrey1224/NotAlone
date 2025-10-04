@@ -1,4 +1,4 @@
-"""Sprint 5: Safety & Moderation - reports, moderation_actions, recent_contacts
+"""Sprint 5: Safety & Moderation - reports, moderation_actions
 
 Revision ID: 20251005_001
 Revises: 20251003_006
@@ -82,28 +82,7 @@ def upgrade() -> None:
     """
     )
 
-    # 3. Create recent_contacts table (for post-block cooldown)
-    op.execute(
-        """
-        CREATE TABLE IF NOT EXISTS recent_contacts (
-            user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-            other_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-            until TIMESTAMPTZ NOT NULL,
-            PRIMARY KEY(user_id, other_id)
-        )
-    """
-    )
-
-    # Index for checking cooldown expiry
-    op.execute(
-        """
-        CREATE INDEX IF NOT EXISTS idx_recent_contacts_until
-        ON recent_contacts(until)
-    """
-    )
-
 
 def downgrade() -> None:
-    op.execute("DROP TABLE IF EXISTS recent_contacts CASCADE")
     op.execute("DROP TABLE IF EXISTS moderation_actions CASCADE")
     op.execute("DROP TABLE IF EXISTS reports CASCADE")
