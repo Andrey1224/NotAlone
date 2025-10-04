@@ -1,12 +1,14 @@
 """Tips/payment handlers for Telegram Stars (XTR)."""
 
 import logging
+import time
 
 from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice, Message
 
 from apps.bot.api_client import api_client
+from core.metrics import tips_errors_total, tips_paid_total, tips_processing_duration
 from core.redis import get_redis
 from core.security import sign_tips_payload
 
@@ -14,7 +16,7 @@ router = Router()
 logger = logging.getLogger(__name__)
 
 # Preset tip amounts in XTR (Telegram Stars)
-PRESETS = [5, 10, 25, 50]
+PRESETS = [30, 100, 200, 500]
 
 
 @router.message(Command("tips"))
@@ -104,6 +106,7 @@ async def on_tip_callback(callback: CallbackQuery) -> None:
     # Check if sending to self
     if callback.from_user.id == peer_tg_id:
         await callback.answer("❌ Нельзя отправить чаевые самому себе", show_alert=True)
+        tips_errors_total.labels(error_type="self_tip").inc()
         return
 
     # Redis lock for idempotency (prevent double-click)
@@ -113,7 +116,11 @@ async def on_tip_callback(callback: CallbackQuery) -> None:
 
     if not lock_acquired:
         await callback.answer("⏳ Запрос уже обрабатывается...", show_alert=True)
+        tips_errors_total.labels(error_type="duplicate_click").inc()
         return
+
+    # Start timing for metrics
+    start_time = time.time()
 
     try:
         # Check eligibility via API
@@ -123,11 +130,13 @@ async def on_tip_callback(callback: CallbackQuery) -> None:
 
         if response.get("ok") is not True:
             await callback.answer("❌ Сессия неактивна или истёк срок (24ч)", show_alert=True)
+            tips_errors_total.labels(error_type="not_eligible").inc()
             return
 
     except Exception as e:
         logger.error(f"Eligibility check failed: {e}")
         await callback.answer("❌ Ошибка проверки прав доступа", show_alert=True)
+        tips_errors_total.labels(error_type="eligibility_check_failed").inc()
         return
 
     # Create signed payload
@@ -136,14 +145,20 @@ async def on_tip_callback(callback: CallbackQuery) -> None:
 
     # Send Telegram Stars invoice
     try:
-        await callback.message.bot.send_invoice(  # type: ignore
+        await callback.message.bot.send_invoice(
             chat_id=callback.from_user.id,
             title="Чаевые собеседнику",
             description="Спасибо за разговор! Комиссия платформы: 10%",
             payload=signed_payload,
+            provider_token="",  # Empty for Telegram Stars (XTR)
             currency="XTR",  # Telegram Stars
             prices=[LabeledPrice(label=f"{amount} Stars", amount=amount)],
         )
+
+        # Record processing time
+        duration = time.time() - start_time
+        tips_processing_duration.observe(duration)
+
         await callback.answer("✅ Счёт отправлен!")
 
         # Edit original message to confirm
@@ -155,6 +170,56 @@ async def on_tip_callback(callback: CallbackQuery) -> None:
     except Exception as e:
         logger.error(f"Failed to send invoice: {e}")
         await callback.answer("❌ Не удалось создать счёт", show_alert=True)
+        tips_errors_total.labels(error_type="invoice_send_failed").inc()
+
+
+@router.pre_checkout_query()
+async def handle_pre_checkout_query(pre_checkout_query) -> None:
+    """
+    Handle pre-checkout query from Telegram.
+
+    This handler is called BEFORE the actual payment is processed.
+    We must answer within 10 seconds or payment will fail.
+
+    For Telegram Stars, we can do basic validation here:
+    - Verify payload format
+    - Check currency is XTR
+    - Optionally verify eligibility (though already checked at invoice creation)
+
+    For now, we approve all pre-checkout queries since validation
+    was done during invoice creation.
+    """
+    from aiogram.types import PreCheckoutQuery
+
+    query: PreCheckoutQuery = pre_checkout_query
+
+    try:
+        # Basic validation: ensure currency is XTR
+        if query.currency != "XTR":
+            logger.warning(f"Pre-checkout: invalid currency {query.currency}")
+            await query.answer(ok=False, error_message="Поддерживаются только Telegram Stars (XTR)")
+            tips_errors_total.labels(error_type="pre_checkout_invalid_currency").inc()
+            return
+
+        # Optionally verify HMAC signature (paranoid check)
+        from core.security import verify_tips_payload
+
+        valid, _ = verify_tips_payload(query.invoice_payload)
+        if not valid:
+            logger.warning("Pre-checkout: invalid HMAC in payload")
+            await query.answer(ok=False, error_message="Недействительная подпись платежа")
+            tips_errors_total.labels(error_type="pre_checkout_invalid_hmac").inc()
+            return
+
+        # All checks passed - approve payment
+        logger.info(f"Pre-checkout approved: {query.id}, amount={query.total_amount} XTR")
+        await query.answer(ok=True)
+
+    except Exception as e:
+        logger.error(f"Pre-checkout error: {e}")
+        # On error, reject payment to be safe
+        await query.answer(ok=False, error_message="Произошла ошибка. Попробуйте позже.")
+        tips_errors_total.labels(error_type="pre_checkout_exception").inc()
 
 
 @router.message(F.successful_payment)
@@ -211,6 +276,9 @@ async def on_successful_payment(message: Message) -> None:
             # Set Redis flag to prevent duplicate notifications (24h TTL)
             await redis.set(notif_key, "1", ex=86400)
 
+            # Increment success counter
+            tips_paid_total.inc()
+
             # Calculate amounts
             amount_xtr = sp.total_amount
             commission = int(round(amount_xtr * 0.10))
@@ -236,10 +304,13 @@ async def on_successful_payment(message: Message) -> None:
                     )
                 except Exception as e:
                     logger.error(f"Failed to notify recipient {to_tg}: {e}")
+                    tips_errors_total.labels(error_type="notification_failed").inc()
 
         else:
             await message.answer("❌ Ошибка обработки платежа. Свяжитесь с поддержкой.")
+            tips_errors_total.labels(error_type="payment_record_failed").inc()
 
     except Exception as e:
         logger.error(f"Failed to record payment: {e}")
         await message.answer("❌ Ошибка сохранения платежа. Попробуйте позже или свяжитесь с поддержкой.")
+        tips_errors_total.labels(error_type="payment_exception").inc()

@@ -33,6 +33,12 @@ class Settings(BaseSettings):
 
     # Security
     secret_key: str
+    internal_bot_secret: str  # HMAC secret for bot->API authentication
+
+    # Admin
+    admin_user: str = "admin"
+    admin_pass: str = "changeme"
+    mod_chat_id: int | None = None  # Telegram chat ID for moderation alerts
 
     # Environment
     environment: str = "development"
@@ -46,4 +52,4 @@ class Settings(BaseSettings):
         return self.environment == "development"
 
 
-settings = Settings()  # type: ignore
+settings = Settings()

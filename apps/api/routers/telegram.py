@@ -1,7 +1,5 @@
 """Telegram webhook router for FastAPI."""
 
-# type: ignore
-
 from fastapi import APIRouter, Header, Request, Response, status
 from fastapi.exceptions import HTTPException
 

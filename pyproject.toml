@@ -64,6 +64,21 @@ disallow_untyped_defs = true
 explicit_package_bases = true
 mypy_path = "$MYPY_CONFIG_FILE_DIR"
 
+# Relax strict checks for aiogram/FastAPI code (no type stubs available)
+[[tool.mypy.overrides]]
+module = ["apps.bot.*", "apps.api.routers.*", "apps.api.middlewares.*", "apps.workers.*", "apps.api.main"]
+disable_error_code = ["misc", "no-untyped-def", "type-arg", "union-attr", "no-any-return", "no-untyped-call"]
+
+# Allow BaseSettings subclass (pydantic-settings)
+[[tool.mypy.overrides]]
+module = ["core.config"]
+disable_error_code = ["misc"]
+
+# Allow return Any from deps (Redis client)
+[[tool.mypy.overrides]]
+module = ["apps.api.deps"]
+disable_error_code = ["type-arg"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, DateTime, Index, String, UniqueConstraint
+from sqlalchemy import BigInteger, Boolean, CheckConstraint, DateTime, Index, String, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from core.db import Base
@@ -26,9 +26,17 @@ class Match(Base):
     expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     __table_args__ = (
-        UniqueConstraint("user_a", "user_b", name="uq_match_users"),
-        # Prevent duplicate matches for same pair (regardless of order) in proposed state
-        Index("idx_match_pair_proposed", "u_lo", "u_hi", unique=True, postgresql_where=(status == "proposed")),
+        # Prevent self-matching (user cannot match with themselves)
+        CheckConstraint("user_a <> user_b", name="chk_match_no_self"),
+        # Prevent duplicate OPEN matches (proposed OR active) for same pair
+        # Allows rematches after previous match is completed/declined/expired
+        Index(
+            "idx_match_pair_open",
+            "u_lo",
+            "u_hi",
+            unique=True,
+            postgresql_where=text("status IN ('proposed', 'active')"),
+        ),
     )
 
     def __repr__(self) -> str:

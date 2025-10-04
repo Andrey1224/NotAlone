@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from apps.api.middlewares.metrics import MetricsMiddleware
-from apps.api.routers import chat, health, match, payments, telegram, tips
+from apps.api.routers import chat, health, match, payments, reports, telegram, tips
 from core import close_redis
 from core.config import settings
 
@@ -42,6 +42,7 @@ app.include_router(match.router, prefix="/match", tags=["match"])
 app.include_router(chat.router, prefix="/chat", tags=["chat"])
 app.include_router(tips.router)  # Already has /tips prefix
 app.include_router(payments.router, prefix="/payments", tags=["payments"])
+app.include_router(reports.router)  # Already has /reports prefix
 app.include_router(telegram.router, prefix="/telegram", tags=["telegram"])
 
 
@@ -52,7 +53,7 @@ async def root() -> dict[str, str]:
 
 
 @app.get("/metrics")
-async def metrics() -> str:
+async def metrics():
     """Prometheus metrics endpoint."""
     from fastapi import Response
     from prometheus_client import CONTENT_TYPE_LATEST, generate_latest

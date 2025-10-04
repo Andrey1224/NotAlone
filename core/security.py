@@ -115,3 +115,36 @@ def verify_tips_payload(signed: str) -> tuple[bool, str]:
         return (valid, payload if valid else "")
     except (ValueError, AttributeError):
         return (False, "")
+
+
+def sign_bot_request(body: bytes) -> str:
+    """
+    Sign bot→API request body using HMAC-SHA256.
+
+    Args:
+        body: Raw request body bytes
+
+    Returns:
+        Base64url-encoded signature
+    """
+    secret = settings.internal_bot_secret.encode()
+    mac = hmac.new(secret, body, hashlib.sha256).digest()
+    return _b64u(mac)
+
+
+def verify_bot_signature(body: bytes, signature: str) -> bool:
+    """
+    Verify HMAC signature of bot→API request using constant-time comparison.
+
+    Args:
+        body: Raw request body bytes
+        signature: Base64url-encoded signature from X-Bot-Signature header
+
+    Returns:
+        True if signature is valid
+    """
+    try:
+        expected = sign_bot_request(body)
+        return hmac.compare_digest(expected, signature)
+    except Exception:
+        return False

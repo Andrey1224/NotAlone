@@ -1,7 +1,12 @@
+from typing import TYPE_CHECKING
+
 from sqlalchemy import BigInteger, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.db import Base
+
+if TYPE_CHECKING:
+    from models.user import User
 
 
 class Topic(Base):
@@ -30,7 +35,7 @@ class UserTopic(Base):
     weight: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
 
     # Relationships
-    user: Mapped["User"] = relationship("User", back_populates="topics")  # type: ignore
+    user: Mapped["User"] = relationship("User", back_populates="topics")
     topic: Mapped["Topic"] = relationship("Topic", back_populates="users")
 
     __table_args__ = (Index("idx_user_topics_topic_id", "topic_id"),)

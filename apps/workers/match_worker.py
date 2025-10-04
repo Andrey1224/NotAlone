@@ -86,13 +86,13 @@ class MatchWorker:
                                     print(f"[WORKER] No match found for user {user_id}")
 
                                 # Acknowledge message
-                                await redis_client.xack(stream_name, group_name, message_id)  # type: ignore[no-untyped-call]
+                                await redis_client.xack(stream_name, group_name, message_id)
 
                             except Exception as e:
                                 print(f"Error processing message {message_id}: {e}")
                                 # Move to dead letter queue
                                 await redis_client.xadd("match.dead", message_data)
-                                await redis_client.xack(stream_name, group_name, message_id)  # type: ignore[no-untyped-call]
+                                await redis_client.xack(stream_name, group_name, message_id)
 
             except Exception as e:
                 print(f"Error in match worker loop: {e}")
@@ -149,18 +149,27 @@ class MatchWorker:
             except Exception as e:
                 # Handle duplicate match race condition (unique index violation)
                 await db.rollback()
-                print(f"Match creation failed (likely duplicate): {e}")
-                # Try to find existing match
-                from sqlalchemy import and_, select
+                print(f"Match creation failed (likely duplicate open match): {e}")
+                # Try to find existing OPEN match (proposed OR active)
+                from sqlalchemy import and_, or_, select
 
                 result = await db.execute(
-                    select(Match).where(and_(Match.u_lo == u_lo, Match.u_hi == u_hi, Match.status == "proposed"))
+                    select(Match).where(
+                        and_(
+                            Match.u_lo == u_lo,
+                            Match.u_hi == u_hi,
+                            or_(Match.status == "proposed", Match.status == "active"),
+                        )
+                    )
                 )
                 existing_match = result.scalar_one_or_none()
                 if existing_match:
-                    print(f"Found existing match: {existing_match.id}")
+                    print(
+                        f"Found existing open match: {existing_match.id} (status={existing_match.status}), reusing it"
+                    )
                     return existing_match
-                # If no existing match found, re-raise
+                # If no existing open match found, this is unexpected - log and re-raise
+                print(f"ERROR: IntegrityError but no open match found for u_lo={u_lo}, u_hi={u_hi}")
                 raise
 
     async def _find_candidates(self, db: AsyncSession, user_id: int, topics: list[str], timezone: str) -> list[int]:

@@ -12,21 +12,21 @@ from apps.api.deps import get_db
 router = APIRouter()
 
 
-class RelayMessageRequest(BaseModel):  # type: ignore[misc]
+class RelayMessageRequest(BaseModel):
     """Request to relay a message to peer."""
 
     from_user: int  # Telegram user ID of sender
     text: str  # Message text
 
 
-class EndChatRequest(BaseModel):  # type: ignore[misc]
+class EndChatRequest(BaseModel):
     """Request to end active chat session."""
 
     user_id: int  # Telegram user ID ending the chat
     reason: str | None = None  # Optional reason for ending
 
 
-@router.post("/relay")  # type: ignore[misc]
+@router.post("/relay")
 async def relay_message(request: RelayMessageRequest, db: AsyncSession = Depends(get_db)) -> dict[str, int | str]:
     """
     Relay a message from one user to their active chat peer.
@@ -94,7 +94,7 @@ async def relay_message(request: RelayMessageRequest, db: AsyncSession = Depends
     }
 
 
-@router.post("/end")  # type: ignore[misc]
+@router.post("/end")
 async def end_chat(request: EndChatRequest, db: AsyncSession = Depends(get_db)) -> dict[str, int | str]:
     """
     End an active chat session.

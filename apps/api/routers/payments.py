@@ -8,6 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.deps import get_db
+from core.metrics import tips_errors_total
 from core.security import verify_tips_payload
 
 router = APIRouter()
@@ -94,12 +95,14 @@ async def record_payment(request: RecordPaymentRequest, db: AsyncSession = Depen
     # Validate currency
     if sp.currency != "XTR":
         logger.warning(f"Invalid currency: {sp.currency}")
+        tips_errors_total.labels(error_type="invalid_currency").inc()
         raise HTTPException(status_code=400, detail="invalid_currency")
 
     # Verify HMAC signature
     valid, payload = verify_tips_payload(sp.invoice_payload)
     if not valid:
         logger.warning(f"Invalid HMAC signature in payload: {sp.invoice_payload[:50]}...")
+        tips_errors_total.labels(error_type="invalid_hmac").inc()
         raise HTTPException(status_code=400, detail="invalid_signature")
 
     # Parse payload: match_id:from_tg:to_tg:amount
@@ -114,6 +117,7 @@ async def record_payment(request: RecordPaymentRequest, db: AsyncSession = Depen
         amount_int = int(amount)
     except (ValueError, AttributeError) as e:
         logger.error(f"Malformed payload: {payload}, error: {e}")
+        tips_errors_total.labels(error_type="malformed_payload").inc()
         raise HTTPException(status_code=400, detail="malformed_payload") from e
 
     # Calculate 10% commission

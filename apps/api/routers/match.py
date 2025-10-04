@@ -9,7 +9,7 @@ from apps.api.deps import get_db
 router = APIRouter()
 
 
-class MatchFindRequest(BaseModel):  # type: ignore[misc]
+class MatchFindRequest(BaseModel):
     """Request to find a match."""
 
     user_id: int
@@ -17,7 +17,7 @@ class MatchFindRequest(BaseModel):  # type: ignore[misc]
     timezone: str
 
 
-class MatchConfirmRequest(BaseModel):  # type: ignore[misc]
+class MatchConfirmRequest(BaseModel):
     """Request to confirm a match."""
 
     match_id: int
@@ -25,7 +25,7 @@ class MatchConfirmRequest(BaseModel):  # type: ignore[misc]
     user_id: int  # User making the action
 
 
-@router.post("/find")  # type: ignore[misc]
+@router.post("/find")
 async def find_match(request: MatchFindRequest, db: AsyncSession = Depends(get_db)) -> dict[str, str]:
     """Find a match for user."""
     print(
@@ -90,7 +90,7 @@ async def find_match(request: MatchFindRequest, db: AsyncSession = Depends(get_d
     }
 
 
-@router.post("/confirm")  # type: ignore[misc]
+@router.post("/confirm")
 async def confirm_match(request: MatchConfirmRequest, db: AsyncSession = Depends(get_db)) -> dict[str, str]:
     """Confirm or decline a match."""
     from datetime import datetime, timedelta

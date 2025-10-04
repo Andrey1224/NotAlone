@@ -6,6 +6,7 @@ from typing import Any
 import httpx
 
 from core.config import settings
+from core.security import sign_bot_request
 
 logger = logging.getLogger(__name__)
 
@@ -22,12 +23,52 @@ class ApiClient:
         """Close the HTTP client."""
         await self.client.aclose()
 
-    async def post(self, endpoint: str, json: dict[str, Any] | None = None) -> dict[str, Any]:
-        """Make POST request to API."""
+    async def post(
+        self,
+        endpoint: str,
+        json: dict[str, Any] | None = None,
+        auth_bot: bool = False,
+        caller_tg_id: int | None = None,
+    ) -> dict[str, Any]:
+        """
+        Make POST request to API.
+
+        Args:
+            endpoint: API endpoint path
+            json: JSON body to send
+            auth_bot: If True, sign request with HMAC and add auth headers
+            caller_tg_id: Telegram user ID of caller (required if auth_bot=True)
+
+        Returns:
+            JSON response from API
+        """
         try:
-            response = await self.client.post(endpoint, json=json)
+            headers = {}
+
+            # Add HMAC authentication headers if requested
+            if auth_bot:
+                if caller_tg_id is None:
+                    raise ValueError("caller_tg_id required when auth_bot=True")
+
+                # Serialize body to bytes for signing
+                body_bytes = json.dumps(json or {}).encode("utf-8")
+
+                # Generate HMAC signature
+                signature = sign_bot_request(body_bytes)
+
+                # Add auth headers
+                headers["X-Tg-User-Id"] = str(caller_tg_id)
+                headers["X-Bot-Signature"] = signature
+                headers["Content-Type"] = "application/json"
+
+                # Send with pre-serialized content
+                response = await self.client.post(endpoint, content=body_bytes, headers=headers)
+            else:
+                # Normal request without auth
+                response = await self.client.post(endpoint, json=json)
+
             response.raise_for_status()
-            return response.json()  # type: ignore[no-any-return]
+            return response.json()
         except httpx.HTTPError as e:
             logger.error(f"API request failed: {endpoint} - {e}")
             raise
@@ -37,7 +78,7 @@ class ApiClient:
         try:
             response = await self.client.get(endpoint, params=params)
             response.raise_for_status()
-            return response.json()  # type: ignore[no-any-return]
+            return response.json()
         except httpx.HTTPError as e:
             logger.error(f"API request failed: {endpoint} - {e}")
             raise

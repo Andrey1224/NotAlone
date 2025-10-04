@@ -13,7 +13,7 @@ from models.topic import Topic
 router = Router()
 
 
-@router.message(Command("find"))  # type: ignore[misc]
+@router.message(Command("find"))
 async def cmd_find(message: Message, db: AsyncSession) -> None:
     """Handle /find command - find a conversation partner."""
     # Check if user exists and has profile
@@ -65,7 +65,7 @@ async def cmd_find(message: Message, db: AsyncSession) -> None:
         logging.error(f"Failed to add user to match queue: {e}")
 
 
-@router.callback_query(F.data.startswith("match_accept_"))  # type: ignore[misc]
+@router.callback_query(F.data.startswith("match_accept_"))
 async def handle_match_accept(callback: CallbackQuery, db: AsyncSession) -> None:
     """Handle match acceptance with HMAC verification and idempotency."""
     # Parse callback data: match_accept_{match_id}_{hmac}
@@ -129,7 +129,7 @@ async def handle_match_accept(callback: CallbackQuery, db: AsyncSession) -> None
         logging.error(f"Failed to accept match: {e}")
 
 
-@router.callback_query(F.data.startswith("match_decline_"))  # type: ignore[misc]
+@router.callback_query(F.data.startswith("match_decline_"))
 async def handle_match_decline(callback: CallbackQuery, db: AsyncSession) -> None:
     """Handle match decline with HMAC verification and idempotency."""
     # Parse callback data: match_decline_{match_id}_{hmac}

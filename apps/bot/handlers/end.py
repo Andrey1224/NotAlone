@@ -12,7 +12,7 @@ router = Router()
 logger = logging.getLogger(__name__)
 
 
-@router.message(Command("end"))  # type: ignore[misc]
+@router.message(Command("end"))
 async def cmd_end(message: Message) -> None:
     """
     Handle /end command - end active chat session.
@@ -40,7 +40,7 @@ async def cmd_end(message: Message) -> None:
     )
 
 
-@router.callback_query(F.data.startswith("end_confirm:"))  # type: ignore[misc]
+@router.callback_query(F.data.startswith("end_confirm:"))
 async def handle_end_confirm(callback: CallbackQuery) -> None:
     """Handle end confirmation callback."""
     if not callback.from_user or not callback.message:
@@ -48,7 +48,7 @@ async def handle_end_confirm(callback: CallbackQuery) -> None:
 
     # Parse user_id from callback data
     try:
-        _, user_id_str = callback.data.split(":")  # type: ignore[union-attr]
+        _, user_id_str = callback.data.split(":")
         user_id = int(user_id_str)
 
         # Security: ensure user can only end their own chats
@@ -115,7 +115,7 @@ async def handle_end_confirm(callback: CallbackQuery) -> None:
         await callback.answer("❌ Нет активного диалога", show_alert=True)
 
 
-@router.callback_query(F.data == "end_cancel")  # type: ignore[misc]
+@router.callback_query(F.data == "end_cancel")
 async def handle_end_cancel(callback: CallbackQuery) -> None:
     """Handle end cancellation callback."""
     if not callback.message:

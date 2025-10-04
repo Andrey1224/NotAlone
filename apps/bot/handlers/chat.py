@@ -11,7 +11,7 @@ router = Router()
 logger = logging.getLogger(__name__)
 
 
-@router.message(F.text & ~F.text.startswith("/"))  # type: ignore[misc]
+@router.message(F.text & ~F.text.startswith("/"))
 async def handle_text_message(message: Message) -> None:
     """
     Handle text messages and relay them to active chat peer.
