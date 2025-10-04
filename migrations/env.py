@@ -10,7 +10,18 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 # Import Base and all models
 from core.db import Base
-from models import AiHint, ChatSession, Match, SafetyFlag, Tip, Topic, User, UserTopic  # noqa: F401
+from models import (  # noqa: F401
+    AiHint,
+    ChatSession,
+    Match,
+    ModerationAction,
+    Report,
+    SafetyFlag,
+    Tip,
+    Topic,
+    User,
+    UserTopic,
+)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
