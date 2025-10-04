@@ -1,13 +1,16 @@
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import redis.asyncio as redis
 
 from core.config import settings
 
-_redis_client: redis.Redis[Any] | None = None
+if TYPE_CHECKING:
+    pass
+
+_redis_client: "redis.Redis[Any] | None" = None
 
 
-async def get_redis() -> redis.Redis[Any]:
+async def get_redis() -> "redis.Redis[Any]":
     """Get Redis client instance."""
     global _redis_client
     if _redis_client is None:
