@@ -97,6 +97,8 @@ jobs:
           TELEGRAM_BOT_TOKEN: test_token
           PUBLIC_BASE_URL: https://test.example.com
           SECRET_KEY: test_secret_key
+          INTERNAL_BOT_SECRET: test_internal_bot_secret_32chars
+          TIPS_HMAC_SECRET: test_tips_hmac_secret_32chars___
         run: pytest -v --cov=. --cov-report=xml --cov-report=term
 
       - name: Upload coverage
@@ -179,6 +181,8 @@ jobs:
           SECRET_KEY: test_secret_key_for_ci
           TELEGRAM_BOT_TOKEN: test_bot_token
           PUBLIC_BASE_URL: https://test.example.com
+          INTERNAL_BOT_SECRET: test_internal_bot_secret_32chars
+          TIPS_HMAC_SECRET: test_tips_hmac_secret_32chars___
         run: |
           alembic upgrade head
           alembic check
