@@ -86,7 +86,7 @@ async def on_report_callback(callback: CallbackQuery) -> None:
     try:
         response = await api_client.post(
             "/reports",
-            json={
+            json_data={
                 "chat_session_id": chat_session_id,
                 "to_user_tg": peer_tg_id,
                 "reason": reason,

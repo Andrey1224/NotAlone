@@ -45,7 +45,7 @@ async def cmd_find(message: Message, db: AsyncSession) -> None:
     try:
         response = await api_client.post(
             "/match/find",
-            json={
+            json_data={
                 "user_id": user.tg_id,  # Use tg_id as expected by API
                 "topics": list(user_topics),
                 "timezone": user.tz,
@@ -108,7 +108,7 @@ async def handle_match_accept(callback: CallbackQuery, db: AsyncSession) -> None
     try:
         # Call API to confirm match
         response = await api_client.post(
-            "/match/confirm", json={"match_id": match_id, "action": "accept", "user_id": user.id}
+            "/match/confirm", json_data={"match_id": match_id, "action": "accept", "user_id": user.id}
         )
 
         if response.get("status") == "active":
@@ -172,7 +172,7 @@ async def handle_match_decline(callback: CallbackQuery, db: AsyncSession) -> Non
     try:
         # Call API to decline match
         response = await api_client.post(
-            "/match/confirm", json={"match_id": match_id, "action": "decline", "user_id": user.id}
+            "/match/confirm", json_data={"match_id": match_id, "action": "decline", "user_id": user.id}
         )
 
         if response.get("status") == "declined":

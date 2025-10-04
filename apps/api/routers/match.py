@@ -149,9 +149,23 @@ async def confirm_match(request: MatchConfirmRequest, db: AsyncSession = Depends
     if not accepted:
         match.status = "declined"
         # Add to recent_contacts with 72h TTL (bidirectional to prevent reverse matches)
+        # Use UPSERT to prevent IntegrityError on re-match after cooldown
         until = datetime.utcnow() + timedelta(hours=72)
-        db.add(RecentContact(user_id=user.id, other_id=other_user_id, until=until))
-        db.add(RecentContact(user_id=other_user_id, other_id=user.id, until=until))
+
+        from sqlalchemy.dialects.postgresql import insert
+
+        # Upsert for both directions
+        stmt = (
+            insert(RecentContact)
+            .values(
+                [
+                    {"user_id": user.id, "other_id": other_user_id, "until": until},
+                    {"user_id": other_user_id, "other_id": user.id, "until": until},
+                ]
+            )
+            .on_conflict_do_update(index_elements=["user_id", "other_id"], set_={"until": until})
+        )
+        await db.execute(stmt)
         await db.commit()
 
         # Notify other user
@@ -204,6 +218,19 @@ async def confirm_match(request: MatchConfirmRequest, db: AsyncSession = Depends
         db.add(chat_session)
 
         await db.commit()
+        await db.refresh(chat_session)  # Get chat_session.id
+
+        # Get Telegram IDs for both users
+        user_a_result = await db.execute(select(User).where(User.id == match.user_a))
+        user_b_result = await db.execute(select(User).where(User.id == match.user_b))
+        user_a_obj = user_a_result.scalar_one()
+        user_b_obj = user_b_result.scalar_one()
+
+        # Store active session in Redis for /report and /block handlers
+        from apps.bot.redis import set_active_session
+
+        await set_active_session(user_a_obj.tg_id, chat_session.id, user_b_obj.tg_id)
+        await set_active_session(user_b_obj.tg_id, chat_session.id, user_a_obj.tg_id)
 
         # Send intro message to both users
         await notifier.send_match_active(db, match.user_a, match.user_b)

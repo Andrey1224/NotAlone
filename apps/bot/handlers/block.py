@@ -44,7 +44,7 @@ async def cmd_block(message: Message) -> None:
     try:
         response = await api_client.post(
             "/reports/block",
-            json={"peer_tg": peer_tg_id},
+            json_data={"peer_tg": peer_tg_id},
             auth_bot=True,
             caller_tg_id=message.from_user.id,
         )

@@ -24,7 +24,9 @@ async def handle_text_message(message: Message) -> None:
 
     try:
         # Call API to relay message
-        response = await api_client.post("/chat/relay", json={"from_user": message.from_user.id, "text": message.text})
+        response = await api_client.post(
+            "/chat/relay", json_data={"from_user": message.from_user.id, "text": message.text}
+        )
 
         peer_tg_id = response.get("peer_tg_id")
         sender_nickname = response.get("peer_nickname", "Собеседник")  # Use nickname from API

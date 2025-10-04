@@ -57,7 +57,7 @@ async def handle_end_confirm(callback: CallbackQuery) -> None:
             return
 
         # Call API to end chat
-        response = await api_client.post("/chat/end", json={"user_id": user_id})
+        response = await api_client.post("/chat/end", json_data={"user_id": user_id})
 
         peer_tg_id = response.get("peer_tg_id")
         match_id = response.get("match_id")

@@ -258,7 +258,7 @@ async def on_successful_payment(message: Message) -> None:
     try:
         response = await api_client.post(
             "/payments/record",
-            json={
+            json_data={
                 "successful_payment": {
                     "currency": sp.currency,
                     "total_amount": sp.total_amount,

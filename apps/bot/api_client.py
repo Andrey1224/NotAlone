@@ -1,5 +1,6 @@
 """API client for bot to communicate with the API service."""
 
+import json
 import logging
 from typing import Any
 
@@ -26,7 +27,7 @@ class ApiClient:
     async def post(
         self,
         endpoint: str,
-        json: dict[str, Any] | None = None,
+        json_data: dict[str, Any] | None = None,
         auth_bot: bool = False,
         caller_tg_id: int | None = None,
     ) -> dict[str, Any]:
@@ -35,7 +36,7 @@ class ApiClient:
 
         Args:
             endpoint: API endpoint path
-            json: JSON body to send
+            json_data: JSON body to send
             auth_bot: If True, sign request with HMAC and add auth headers
             caller_tg_id: Telegram user ID of caller (required if auth_bot=True)
 
@@ -51,7 +52,7 @@ class ApiClient:
                     raise ValueError("caller_tg_id required when auth_bot=True")
 
                 # Serialize body to bytes for signing
-                body_bytes = json.dumps(json or {}).encode("utf-8")
+                body_bytes = json.dumps(json_data or {}).encode("utf-8")
 
                 # Generate HMAC signature
                 signature = sign_bot_request(body_bytes)
@@ -65,7 +66,7 @@ class ApiClient:
                 response = await self.client.post(endpoint, content=body_bytes, headers=headers)
             else:
                 # Normal request without auth
-                response = await self.client.post(endpoint, json=json)
+                response = await self.client.post(endpoint, json=json_data)
 
             response.raise_for_status()
             return response.json()
